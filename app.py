@@ -204,8 +204,10 @@ def require_auth(f):
         from flask import session, redirect, request, url_for
 
         if not auth_manager.is_authenticated(session):
-            # Store the original URL to redirect back after login
-            session["next_url"] = request.url
+            # Store the original URL to redirect back after login, but only for non-API routes
+            # API routes should not be used for user navigation after login
+            if not request.path.startswith("/api/"):
+                session["next_url"] = request.url
             return redirect("/login")
         return f(*args, **kwargs)
 
