@@ -751,6 +751,13 @@
                         </div>
                     </div>
                     
+                    <!-- Items List Header -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted">
+                            <i class="fas fa-list me-2"></i>Current Voting Items <span id="itemsCountBadge" class="badge bg-primary ms-1">0</span>
+                        </span>
+                    </div>
+                    
                     <div id="itemsList" class="item-list">
                         <div class="loading">
                             <i class="fas fa-spinner fa-spin"></i> Loading items...
@@ -848,7 +855,9 @@
                     
                     <!-- Participants List Header -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted"><i class="fas fa-users me-2"></i>Current Participants</span>
+                        <span class="text-muted">
+                            <i class="fas fa-users me-2"></i>Current Participants <span id="participantsCountBadge" class="badge bg-info ms-1">0</span>
+                        </span>
                         <button id="copyAllLinksBtn" class="btn btn-info btn-sm" onclick="copyAllParticipantLinks()" 
                                 style="display: none;" title="Copy all voting links with participant emails">
                             <i class="fas fa-link me-1"></i>Copy All Links
@@ -977,6 +986,7 @@
                         <small>Add items for participants to vote on</small>
                     </div>
                 `;
+                document.getElementById('itemsCountBadge').textContent = '0';
                 return;
             }
             
@@ -991,6 +1001,9 @@
                     </button>
                 </div>
             `).join('');
+            
+            // Update items count badge
+            document.getElementById('itemsCountBadge').textContent = items.length;
         }
 
         // Load participants
@@ -1010,6 +1023,7 @@
                 `;
                 copyAllBtn.style.display = 'none';
                 copyAllMainBtn.style.display = 'none';
+                document.getElementById('participantsCountBadge').textContent = '0';
                 return;
             }
             
@@ -1053,6 +1067,9 @@
             tooltips.forEach(tooltip => {
                 new bootstrap.Tooltip(tooltip);
             });
+            
+            // Update participants count badge
+            document.getElementById('participantsCountBadge').textContent = participantEntries.length;
         }
 
         // Update stats
@@ -1067,6 +1084,10 @@
             document.getElementById('participantsCount').textContent = participants.length;
             document.getElementById('votesCount').textContent = votes.length;
             document.getElementById('completionRate').textContent = completionRate + '%';
+            
+            // Update the new badge counters
+            document.getElementById('itemsCountBadge').textContent = items.length;
+            document.getElementById('participantsCountBadge').textContent = participants.length;
         }
 
         // Enhanced UI Functions
