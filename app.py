@@ -22,6 +22,8 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import hashlib
+from functools import wraps
 
 # Configure logging
 logging.basicConfig(
@@ -157,6 +159,61 @@ class ConfigManager:
 
 # Initialize configuration manager
 config_manager = ConfigManager()
+
+
+# Authentication System
+class AuthManager:
+    """Simple authentication system for admin access"""
+
+    def __init__(self):
+        # In production, this should be stored securely and hashed
+        # For demo purposes, using a simple default password
+        self.admin_password_hash = self._hash_password("admin123")
+
+    def _hash_password(self, password):
+        """Hash password using SHA-256"""
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    def verify_password(self, password):
+        """Verify if provided password is correct"""
+        return self._hash_password(password) == self.admin_password_hash
+
+    def is_authenticated(self, flask_session):
+        """Check if current session is authenticated"""
+        return flask_session.get("authenticated", False)
+
+    def authenticate(self, flask_session, password):
+        """Authenticate user and set session"""
+        if self.verify_password(password):
+            flask_session["authenticated"] = True
+            flask_session.permanent = True
+            return True
+        return False
+
+    def logout(self, flask_session):
+        """Logout user and clear session"""
+        flask_session.pop("authenticated", None)
+
+
+# Authentication decorator
+def require_auth(f):
+    """Decorator to require authentication for admin routes"""
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        from flask import session, redirect, request, url_for
+
+        if not auth_manager.is_authenticated(session):
+            # Store the original URL to redirect back after login
+            session["next_url"] = request.url
+            return redirect("/login")
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+# Initialize authentication manager
+auth_manager = AuthManager()
 
 
 class VotingSession:
@@ -826,6 +883,18 @@ Vote For Me Platform
 email_service = EmailService()
 
 
+# Context processor for authentication status
+@app.context_processor
+def inject_auth():
+    """Inject authentication status into all templates"""
+    from flask import session
+
+    return {
+        "is_authenticated": auth_manager.is_authenticated(session),
+        "is_participant_page": request.endpoint == "vote_page",
+    }
+
+
 # Routes
 @app.route("/")
 def index():
@@ -833,7 +902,38 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Admin login page"""
+    from flask import session, redirect, request
+
+    if request.method == "POST":
+        password = request.form.get("password")
+        if auth_manager.authenticate(session, password):
+            # Redirect to the originally requested page or admin dashboard
+            next_url = session.pop("next_url", "/admin")
+            return redirect(next_url)
+        else:
+            return render_template("login.html", error="Invalid password")
+
+    # If already authenticated, redirect to admin
+    if auth_manager.is_authenticated(session):
+        return redirect("/admin")
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    """Admin logout"""
+    from flask import session, redirect
+
+    auth_manager.logout(session)
+    return redirect("/")
+
+
 @app.route("/admin")
+@require_auth
 def admin_dashboard():
     """Admin dashboard for managing sessions"""
     active_sessions = session_manager.get_active_sessions()
@@ -841,6 +941,7 @@ def admin_dashboard():
 
 
 @app.route("/admin/<session_id>")
+@require_auth
 def admin_session(session_id):
     """Admin page for individual session management"""
     session = session_manager.get_session(session_id)
@@ -851,12 +952,14 @@ def admin_session(session_id):
 
 
 @app.route("/config")
+@require_auth
 def config_page():
     """Configuration page for email and application settings"""
     return render_template("config.html")
 
 
 @app.route("/api/config", methods=["GET"])
+@require_auth
 def get_config():
     """Get current configuration (sensitive data masked)"""
     config = config_manager.config.copy()
@@ -870,6 +973,7 @@ def get_config():
 
 
 @app.route("/api/config/email", methods=["PUT"])
+@require_auth
 def update_email_config():
     """Update email configuration"""
     data = request.json
@@ -910,6 +1014,7 @@ def update_email_config():
 
 
 @app.route("/api/config/email/test", methods=["POST"])
+@require_auth
 def test_email_config():
     """Test current email configuration"""
     success, message = email_service.test_email_configuration()
@@ -917,6 +1022,7 @@ def test_email_config():
 
 
 @app.route("/api/sessions", methods=["GET"])
+@require_auth
 def get_active_sessions():
     """Get list of active sessions"""
     limit = request.args.get("limit", 100, type=int)
@@ -940,6 +1046,7 @@ def get_active_sessions():
 
 
 @app.route("/api/sessions", methods=["POST"])
+@require_auth
 def create_session():
     """API endpoint to create new voting session"""
     data = request.json
