@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentation - Vote For Me</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .presentation-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-top: 80px; /* Add top padding for fixed nav */
+        }
+        
+        .header-section {
+            padding: 2rem 0;
+            text-align: center;
+        }
+        
+        .results-section {
+            flex: 1;
+            padding: 2rem 0 120px 0; /* Added bottom padding for controls */
+        }
+        
+        .result-item {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s ease;
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        
+        .result-item.revealed {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .result-item.winner {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            box-shadow: 0 12px 40px rgba(255, 215, 0, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .rank-badge {
+            font-size: 1.5rem;
+            font-weight: bold;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 2rem;
+        }
+        
+        .rank-1 { background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); color: #333; }
+        .rank-2 { background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%); color: #333; }
+        .rank-3 { background: linear-gradient(135deg, #cd7f32 0%, #deb887 100%); color: #333; }
+        .rank-other { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        
+        .vote-bar {
+            height: 30px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .vote-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-radius: 50px;
+            padding: 15px 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+            color: white;
+        }
+        
+        .control-btn.primary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            width: 60px;
+            height: 60px;
+        }
+        
+        .control-btn.primary:hover {
+            background: linear-gradient(135deg, #32b249 0%, #24d0a1 100%);
+            transform: scale(1.1);
+        }
+        
+        .progress-status {
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .controls-divider {
+            width: 1px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Mobile-First Unified Navigation Pane */
+        .nav-pane {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+            transform: translateY(0);
+        }
+        
+        .nav-pane.nav-hidden {
+            transform: translateY(-100%);
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .nav-brand {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .nav-brand:hover {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #333;
+            padding: 0.25rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-toggle:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .btn-nav {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .btn-nav:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .btn-nav.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-nav.active:hover {
+            background: #5a6fd8;
+            color: white;
+        }
+        
+        /* Mobile Navigation Styles */
+        @media (max-width: 768px) {
+            .nav-toggle {
+                display: block;
+            }
+            
+            .nav-links {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(15px);
+                flex-direction: column;
+                padding: 1rem;
+                gap: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                transform: translateY(-100%);
+                opacity: 0;
+                pointer-events: none;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            }
+            
+            .nav-links.nav-open {
+                transform: translateY(0);
+                opacity: 1;
+                pointer-events: all;
+            }
+            
+            .btn-nav {
+                width: 100%;
+                justify-content: flex-start;
+                padding: 0.75rem 1rem;
+            }
+            
+            .nav-pane {
+                padding: 1rem;
+            }
+            
+            .controls {
+                flex-wrap: wrap;
+                padding: 12px 20px;
+                gap: 10px;
+            }
+            
+            .progress-status {
+                order: -1;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 10px;
+                font-size: 0.8rem;
+            }
+            
+            .controls-divider {
+                display: none;
+            }
+            
+            .control-btn {
+                width: 45px;
+                height: 45px;
+            }
+            
+            .control-btn.primary {
+                width: 50px;
+                height: 50px;
+            }
+            
+            .rank-badge {
+                width: 60px;
+                height: 60px;
+                margin-right: 1rem;
+                font-size: 1.5rem;
+            }
+            
+            .result-item {
+                padding: 1rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .header-section {
+                padding: 1.5rem 0;
+            }
+            
+            .display-3 {
+                font-size: 2rem;
+            }
+            
+            .results-section {
+                padding-bottom: 140px;
+            }
+        }
+        
+        .waiting-message {
+            text-align: center;
+            padding: 4rem 0;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile-First Navigation Pane -->
+    <nav class="nav-pane" id="navigation">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <i class="fas fa-vote-yea me-2"></i>
+                Vote For Me
+            </a>
+            
+            <button class="nav-toggle" onclick="toggleMobileNav()" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="nav-links" id="nav-links">
+                <a href="/" class="btn-nav">
+                    <i class="fas fa-home me-1"></i>
+                    Home
+                </a>
+                <a href="/admin" class="btn-nav">
+                    <i class="fas fa-tachometer-alt me-1"></i>
+                    Admin
+                </a>
+                <a href="/config" class="btn-nav">
+                    <i class="fas fa-cog me-1"></i>
+                    Config
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="presentation-container">
+        <!-- Header -->
+        <div class="header-section">
+            <div class="container">
+                <h1 class="display-3 fw-bold mb-3" id="sessionTitle">{{ session.title if session else 'Demo Voting Results' }}</h1>
+                <p class="lead" id="sessionDescription">{{ session.description if session else 'Demonstration of presentation mode' }}</p>
+                <div class="mt-4">
+                    <span class="badge bg-light text-dark fs-6 me-2">
+                        <i class="fas fa-users me-1"></i>
+                        <span id="participantCount">5</span> participants
+                    </span>
+                    <span class="badge bg-light text-dark fs-6">
+                        <i class="fas fa-vote-yea me-1"></i>
+                        <span id="totalVotes">50</span> total votes
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results -->
+        <div class="results-section">
+            <div class="container">
+                <div id="resultsContainer">
+                    <!-- Waiting message -->
+                    <div class="waiting-message" id="waitingMessage">
+                        <i class="fas fa-trophy fa-4x mb-4" style="opacity: 0.6;"></i>
+                        <h3>Ready to reveal results!</h3>
+                        <p>Click "Reveal Next" to start the presentation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <button class="control-btn primary" id="revealBtn" onclick="revealNext()" title="Reveal Next Result">
+                <i class="fas fa-eye"></i>
+            </button>
+            
+            <div class="progress-status" id="progressText">
+                Ready to reveal results
+            </div>
+            
+            <div class="controls-divider"></div>
+            
+            <button class="control-btn" onclick="revealAll()" title="Reveal All Results">
+                <i class="fas fa-list"></i>
+            </button>
+            <button class="control-btn" onclick="resetPresentation()" title="Reset Presentation">
+                <i class="fas fa-undo"></i>
+            </button>
+            <button class="control-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <script>
+        // Mobile navigation toggle
+        function toggleMobileNav() {
+            const navLinks = document.getElementById('nav-links');
+            const navToggle = document.querySelector('.nav-toggle i');
+            
+            navLinks.classList.toggle('nav-open');
+            
+            if (navLinks.classList.contains('nav-open')) {
+                navToggle.className = 'fas fa-times';
+            } else {
+                navToggle.className = 'fas fa-bars';
+            }
+        }
+
+        // Close mobile nav when clicking outside
+        document.addEventListener('click', function(e) {
+            const navPane = document.querySelector('.nav-pane');
+            const navLinks = document.getElementById('nav-links');
+            
+            if (!navPane.contains(e.target) && navLinks.classList.contains('nav-open')) {
+                navLinks.classList.remove('nav-open');
+                document.querySelector('.nav-toggle i').className = 'fas fa-bars';
+            }
+        });
+
+        // Get session data from Flask template
+        let sessionData = null;
+        
+        // Check if session data is available from server
+        {% if session %}
+        sessionData = {{ session | tojson }};
+        
+        // Calculate results from votes if session has data
+        if (sessionData && sessionData.votes && Object.keys(sessionData.votes).length > 0) {
+            // Count votes for each item
+            const voteCounts = {};
+            sessionData.items.forEach(item => {
+                voteCounts[item.id] = 0;
+            });
+            
+            // Sum up all votes
+            let totalVotes = 0;
+            Object.values(sessionData.votes).forEach(participantVotes => {
+                Object.entries(participantVotes).forEach(([itemId, voteCount]) => {
+                    voteCounts[itemId] = (voteCounts[itemId] || 0) + parseInt(voteCount);
+                    totalVotes += parseInt(voteCount);
+                });
+            });
+            
+            // Create results array
+            sessionData.results = sessionData.items.map(item => ({
+                id: item.id,
+                name: item.name,
+                description: item.description || '',
+                votes: voteCounts[item.id] || 0,
+                percentage: totalVotes > 0 ? Math.round((voteCounts[item.id] || 0) / totalVotes * 100) : 0
+            }));
+        } else if (sessionData && sessionData.items) {
+            // No votes yet - show items with zero votes
+            sessionData.results = sessionData.items.map(item => ({
+                id: item.id,
+                name: item.name,
+                description: item.description || '',
+                votes: 0,
+                percentage: 0
+            }));
+        }
+        {% else %}
+        // Fallback demo data if no session provided
+        sessionData = {
+            title: "Q3 Project Priorities",
+            description: "Demo presentation - no session data available",
+            results: [
+                { 
+                    id: 1, 
+                    name: "Mobile App Redesign", 
+                    description: "Complete overhaul of mobile user interface",
+                    votes: 18,
+                    percentage: 36
+                },
+                { 
+                    id: 2, 
+                    name: "API Performance Optimization", 
+                    description: "Improve backend API response times",
+                    votes: 12,
+                    percentage: 24
+                }
+            ]
+        };
+        {% endif %}
+        
+        let revealedCount = 0;
+        let socket = io();
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sort results by votes (highest first)
+            sessionData.results.sort((a, b) => b.votes - a.votes);
+            
+            // Initialize presentation
+            updateStats();
+            
+            // Join session for real-time updates
+            // socket.emit('join_session', { session_id: 'demo' });
+        });
+        
+        function updateStats() {
+            const totalVotes = sessionData.results.reduce((sum, item) => sum + item.votes, 0);
+            const participantCount = Math.ceil(totalVotes / 10); // Assuming 10 votes per participant
+            
+            document.getElementById('participantCount').textContent = participantCount;
+            document.getElementById('totalVotes').textContent = totalVotes;
+        }
+        
+        function revealNext() {
+            if (revealedCount >= sessionData.results.length) {
+                return;
+            }
+            
+            // Hide waiting message on first reveal
+            if (revealedCount === 0) {
+                document.getElementById('waitingMessage').style.display = 'none';
+            }
+            
+            const result = sessionData.results[revealedCount];
+            const rank = revealedCount + 1;
+            
+            // Create result item
+            const resultElement = createResultElement(result, rank);
+            document.getElementById('resultsContainer').appendChild(resultElement);
+            
+            // Animate reveal
+            setTimeout(() => {
+                resultElement.classList.add('revealed');
+                
+                // Special animation for winner
+                if (rank === 1) {
+                    setTimeout(() => {
+                        resultElement.classList.add('winner');
+                        confetti();
+                    }, 500);
+                }
+            }, 100);
+            
+            revealedCount++;
+            
+            // Update progress
+            updateProgress();
+            
+            // Update button
+            const revealBtn = document.getElementById('revealBtn');
+            if (revealedCount >= sessionData.results.length) {
+                revealBtn.innerHTML = '<i class="fas fa-check"></i>';
+                revealBtn.title = 'All Revealed';
+                revealBtn.style.background = 'rgba(40, 167, 69, 0.8)';
+            }
+        }
+        
+        function createResultElement(result, rank) {
+            const div = document.createElement('div');
+            div.className = 'result-item p-4';
+            
+            const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-other';
+            
+            div.innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <div class="rank-badge ${rankClass}">
+                            ${rank === 1 ? '🏆' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h4 class="mb-2">${result.name}</h4>
+                                <p class="text-muted mb-3">${result.description}</p>
+                                <div class="vote-bar" style="width: ${result.percentage}%"></div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="h2 mb-0">${result.votes}</div>
+                                <small class="text-muted">votes (${result.percentage}%)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+        
+        function revealAll() {
+            // Fixed: Avoid while loop with setTimeout - use proper async timing
+            if (revealedCount < sessionData.results.length) {
+                revealNext();
+                // Schedule next revelation after current one completes
+                setTimeout(() => revealAll(), 500);
+            }
+        }
+        
+        function resetPresentation() {
+            revealedCount = 0;
+            document.getElementById('resultsContainer').innerHTML = `
+                <div class="waiting-message" id="waitingMessage">
+                    <i class="fas fa-trophy fa-4x mb-4" style="opacity: 0.6;"></i>
+                    <h3>Ready to reveal results!</h3>
+                    <p>Click "Reveal Next" to start the presentation</p>
+                </div>
+            `;
+            
+            // Reset button
+            const revealBtn = document.getElementById('revealBtn');
+            revealBtn.innerHTML = '<i class="fas fa-eye"></i>';
+            revealBtn.title = 'Reveal Next';
+            revealBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+            
+            updateProgress();
+        }
+        
+        function updateProgress() {
+            const progress = document.getElementById('progressText');
+            if (revealedCount === 0) {
+                progress.textContent = 'Ready to reveal results';
+            } else if (revealedCount < sessionData.results.length) {
+                progress.textContent = `Revealed ${revealedCount} of ${sessionData.results.length}`;
+            } else {
+                progress.textContent = 'All results revealed!';
+            }
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        function confetti() {
+            // Simple confetti animation
+            const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'];
+            
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confettiPiece = document.createElement('div');
+                    confettiPiece.style.position = 'fixed';
+                    confettiPiece.style.left = Math.random() * 100 + 'vw';
+                    confettiPiece.style.top = '-10px';
+                    confettiPiece.style.width = '10px';
+                    confettiPiece.style.height = '10px';
+                    confettiPiece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confettiPiece.style.borderRadius = '50%';
+                    confettiPiece.style.pointerEvents = 'none';
+                    confettiPiece.style.zIndex = '9999';
+                    confettiPiece.style.transition = 'all 3s ease-out';
+                    
+                    document.body.appendChild(confettiPiece);
+                    
+                    setTimeout(() => {
+                        confettiPiece.style.transform = `translateY(100vh) rotate(${Math.random() * 360}deg)`;
+                        confettiPiece.style.opacity = '0';
+                    }, 100);
+                    
+                    setTimeout(() => {
+                        confettiPiece.remove();
+                    }, 3100);
+                }, i * 50);
+            }
+        }
+        
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    revealNext();
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    resetPresentation();
+                    break;
+                case 'a':
+                    e.preventDefault();
+                    revealAll();
+                    break;
+                case 'f':
+                case 'F11':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+            }
+        });
+        
+        // Socket.IO events
+        socket.on('connect', () => console.log('Connected to presentation'));
+        socket.on('vote_update', (data) => {
+            console.log('Live vote update:', data);
+            // Update results in real-time
+        });
+    </script>
+</body>
+</html>

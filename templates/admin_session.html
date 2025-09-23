@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Management - Vote For Me</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-container {
+            padding: 6rem 0 2rem 0; /* Add top padding for fixed nav */
+        }
+        
+        .header-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .section-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-draft { background: #fff3cd; color: #856404; }
+        .status-active { background: #d1edff; color: #0c5460; }
+        .status-completed { background: #f8d7da; color: #721c24; }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+        
+        .btn-success-custom {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-success-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+            color: white;
+        }
+        
+        .btn-info-custom {
+            background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-info-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(23, 162, 184, 0.4);
+            color: white;
+        }
+        
+        .btn-danger-custom {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-danger-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+            color: white;
+        }
+        
+        .item-list, .participant-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .item, .participant {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .participant-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        /* Mobile-First Unified Navigation Pane */
+        .nav-pane {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+            transform: translateY(0);
+        }
+        
+        .nav-pane.nav-hidden {
+            transform: translateY(-100%);
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .nav-brand {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .nav-brand:hover {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #333;
+            padding: 0.25rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-toggle:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .btn-nav {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .btn-nav:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .btn-nav.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-nav.active:hover {
+            background: #5a6fd8;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .add-form-section {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 0;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+            margin-bottom: 1rem;
+        }
+        
+        .add-form-section:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+        
+        .form-section {
+            padding: 1.5rem;
+        }
+        
+        .form-section h6 {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .form-section .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
+        }
+        
+        .form-section .btn {
+            border-radius: 6px;
+        }
+        
+        .d-flex.gap-2 .btn {
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem 0;
+            }
+            
+            .d-flex.gap-2 {
+                flex-wrap: wrap;
+                gap: 0.5rem !important;
+            }
+            
+            .d-flex.gap-2 .btn {
+                flex: 1;
+                min-width: auto;
+                margin-bottom: 0.25rem;
+            }
+        }
+
+        /* Enhanced Input Styles */
+        .enhanced-input-section {
+            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+            border: 1px solid #e3e6f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.05);
+        }
+
+        .input-tabs {
+            display: flex;
+            background: #f1f3f4;
+            border-radius: 8px;
+            padding: 4px;
+            width: fit-content;
+        }
+
+        .input-tab {
+            background: none;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .input-tab.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.5);
+            color: #333;
+        }
+
+        .input-mode {
+            display: none;
+        }
+
+        .input-mode.active {
+            display: block;
+        }
+
+        .enhanced-label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .enhanced-textarea-wrapper {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .enhanced-textarea {
+            width: 100%;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 1rem;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 120px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .enhanced-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .enhanced-input {
+            width: 100%;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .enhanced-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .textarea-toolbar {
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+            border-radius: 6px;
+            padding: 4px 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .input-counter {
+            font-size: 0.8rem;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .btn-paste {
+            background: none;
+            border: none;
+            color: #667eea;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-paste:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .input-help {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            color: #92400e;
+            margin-bottom: 1rem;
+        }
+
+        .items-preview, .participants-preview {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #f9fafb;
+            margin-bottom: 1rem;
+        }
+
+        .preview-header {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .preview-list {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .preview-item {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.85rem;
+        }
+
+        .preview-item:last-child {
+            border-bottom: none;
+        }
+
+        .preview-item.valid {
+            color: #059669;
+        }
+
+        .preview-item.invalid {
+            color: #dc2626;
+        }
+
+        .preview-item .item-name {
+            font-weight: 500;
+        }
+
+        .preview-item .item-description {
+            color: #6b7280;
+            font-style: italic;
+            margin-left: 0.5rem;
+        }
+
+        .single-item-form, .single-participant-form {
+            padding: 1rem 0;
+        }
+
+        .input-options {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 8px;
+        }
+
+        .enhanced-checkbox {
+            margin-bottom: 0;
+        }
+
+        .enhanced-checkbox .form-check-input:checked {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .enhanced-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .primary-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .enhanced-btn {
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .enhanced-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .validation-message {
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+            padding: 0.25rem 0;
+        }
+
+        .validation-message.valid {
+            color: #059669;
+        }
+
+        .validation-message.invalid {
+            color: #dc2626;
+        }
+
+        /* Mobile Navigation Styles */
+        @media (max-width: 768px) {
+            .nav-toggle {
+                display: block;
+            }
+            
+            .nav-links {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(15px);
+                flex-direction: column;
+                padding: 1rem;
+                gap: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                transform: translateY(-100%);
+                opacity: 0;
+                pointer-events: none;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            }
+            
+            .nav-links.nav-open {
+                transform: translateY(0);
+                opacity: 1;
+                pointer-events: all;
+            }
+            
+            .btn-nav {
+                width: 100%;
+                justify-content: flex-start;
+                padding: 0.75rem 1rem;
+            }
+            
+            .nav-pane {
+                padding: 1rem;
+            }
+
+            .enhanced-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .primary-actions, .secondary-actions {
+                justify-content: center;
+            }
+            
+            .enhanced-btn {
+                flex: 1;
+            }
+            
+            .input-tabs {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .input-tab {
+                flex: 1;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile-First Navigation Pane -->
+    <nav class="nav-pane" id="navigation">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <i class="fas fa-vote-yea me-2"></i>
+                Vote For Me
+            </a>
+            
+            <button class="nav-toggle" onclick="toggleMobileNav()" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="nav-links" id="nav-links">
+                <a href="/" class="btn-nav">
+                    <i class="fas fa-home me-1"></i>
+                    Home
+                </a>
+                <a href="/admin" class="btn-nav">
+                    <i class="fas fa-tachometer-alt me-1"></i>
+                    Admin
+                </a>
+                <a href="/config" class="btn-nav">
+                    <i class="fas fa-cog me-1"></i>
+                    Config
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-container">
+        <!-- Session Header -->
+        <div class="header-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1 id="sessionTitle">Loading...</h1>
+                    <p id="sessionDescription" class="text-muted mb-3"></p>
+                    <div class="d-flex align-items-center gap-3">
+                        <span id="sessionStatus" class="status-badge">draft</span>
+                        <span class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Created: <span id="sessionCreated">-</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <button id="startBtn" class="btn btn-success-custom me-2" onclick="startSession()" style="display: none;">
+                        <i class="fas fa-play me-1"></i>Start Session
+                    </button>
+                    <button id="completeBtn" class="btn btn-danger-custom me-2" onclick="completeSession()" style="display: none;">
+                        <i class="fas fa-stop me-1"></i>Complete Session
+                    </button>
+                    <button class="btn btn-primary-custom" onclick="openPresentation()">
+                        <i class="fas fa-presentation-screen me-1"></i>Present
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Left Column - Items & Participants -->
+            <div class="col-lg-8">
+                <!-- Voting Items -->
+                <div class="section-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="fas fa-list me-2"></i>Voting Items</h4>
+                    </div>
+                    
+                    <!-- Enhanced Add Item Form - Always Visible -->
+                    <div class="enhanced-input-section mb-4">
+                        <div class="input-tabs mb-3">
+                            <button class="input-tab active" onclick="switchInputMode('bulk', 'items')">
+                                <i class="fas fa-list me-2"></i>Bulk Add
+                            </button>
+                            <button class="input-tab" onclick="switchInputMode('single', 'items')">
+                                <i class="fas fa-plus me-2"></i>Add One
+                            </button>
+                        </div>
+                        
+                        <!-- Bulk Input Mode -->
+                        <div id="itemsBulkMode" class="input-mode active">
+                            <div class="input-container">
+                                <label class="enhanced-label">
+                                    <i class="fas fa-clipboard-list me-2"></i>
+                                    Add Multiple Voting Items
+                                </label>
+                                <div class="enhanced-textarea-wrapper">
+                                    <textarea id="itemsTextarea" class="enhanced-textarea" rows="6" 
+                                             placeholder="Enter voting items, one per line:&#10;&#10;Project Alpha&#10;Project Beta - Best solution for scaling&#10;Project Gamma - Innovation focus&#10;Budget Optimization - Cost reduction initiative&#10;Team Restructuring - Improve efficiency"
+                                             oninput="updateItemsPreview()"></textarea>
+                                    <div class="textarea-toolbar">
+                                        <div class="input-counter">
+                                            <span id="itemsLineCount">0</span> items
+                                        </div>
+                                        <button type="button" class="btn-paste" onclick="pasteFromClipboard('itemsTextarea')">
+                                            <i class="fas fa-paste"></i> Paste
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="input-help">
+                                    <i class="fas fa-lightbulb text-warning me-2"></i>
+                                    <strong>Tips:</strong> Add descriptions after a dash (-). Press Ctrl+V to paste from clipboard.
+                                </div>
+                                <div id="itemsPreview" class="items-preview" style="display: none;">
+                                    <div class="preview-header">
+                                        <i class="fas fa-eye me-2"></i>Preview items to be added:
+                                    </div>
+                                    <div id="itemsPreviewList" class="preview-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Single Input Mode -->
+                        <div id="itemsSingleMode" class="input-mode">
+                            <div class="single-item-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="enhanced-label">Item Name</label>
+                                        <input type="text" id="singleItemName" class="enhanced-input" placeholder="Enter item name" maxlength="100">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="enhanced-label">Description (Optional)</label>
+                                        <input type="text" id="singleItemDescription" class="enhanced-input" placeholder="Brief description" maxlength="200">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="enhanced-actions">
+                            <div class="primary-actions">
+                                <button id="addItemsBtn" class="btn btn-success enhanced-btn" onclick="addItemsFromText()">
+                                    <i class="fas fa-plus-circle me-2"></i>Add Items
+                                </button>
+                                <button id="addSingleItemBtn" class="btn btn-primary enhanced-btn" onclick="addSingleItem()" style="display: none;">
+                                    <i class="fas fa-plus me-2"></i>Add Item
+                                </button>
+                            </div>
+                            <div class="secondary-actions">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearItemForm()">
+                                    <i class="fas fa-eraser me-1"></i>Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="itemsList" class="item-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Loading items...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Participants -->
+                <div class="section-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="fas fa-users me-2"></i>Participants</h4>
+                    </div>
+                    
+                    <!-- Enhanced Add Participant Form - Always Visible -->
+                    <div class="enhanced-input-section mb-4">
+                        <div class="input-tabs mb-3">
+                            <button class="input-tab active" onclick="switchInputMode('bulk', 'participants')">
+                                <i class="fas fa-list me-2"></i>Bulk Add
+                            </button>
+                            <button class="input-tab" onclick="switchInputMode('single', 'participants')">
+                                <i class="fas fa-user-plus me-2"></i>Add One
+                            </button>
+                        </div>
+                        
+                        <!-- Bulk Input Mode -->
+                        <div id="participantsBulkMode" class="input-mode active">
+                            <div class="input-container">
+                                <label class="enhanced-label">
+                                    <i class="fas fa-envelope me-2"></i>
+                                    Add Multiple Participants
+                                </label>
+                                <div class="enhanced-textarea-wrapper">
+                                    <textarea id="participantsTextarea" class="enhanced-textarea" rows="6" 
+                                             placeholder="Enter email addresses, one per line:&#10;&#10;john.doe@company.com&#10;jane.smith@company.com&#10;mike.johnson@company.com&#10;sarah.wilson@company.com&#10;team.lead@company.com"
+                                             oninput="updateParticipantsPreview()"></textarea>
+                                    <div class="textarea-toolbar">
+                                        <div class="input-counter">
+                                            <span id="participantsLineCount">0</span> emails
+                                        </div>
+                                        <button type="button" class="btn-paste" onclick="pasteFromClipboard('participantsTextarea')">
+                                            <i class="fas fa-paste"></i> Paste
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="input-help">
+                                    <i class="fas fa-lightbulb text-warning me-2"></i>
+                                    <strong>Tips:</strong> Copy email list from Excel/CSV. Invalid emails will be highlighted.
+                                </div>
+                                <div id="participantsPreview" class="participants-preview" style="display: none;">
+                                    <div class="preview-header">
+                                        <i class="fas fa-eye me-2"></i>Email validation preview:
+                                    </div>
+                                    <div id="participantsPreviewList" class="preview-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Single Input Mode -->
+                        <div id="participantsSingleMode" class="input-mode">
+                            <div class="single-participant-form">
+                                <label class="enhanced-label">Participant Email</label>
+                                <input type="email" id="singleParticipantEmail" class="enhanced-input" placeholder="participant@email.com" oninput="validateSingleEmail()">
+                                <div id="singleEmailValidation" class="validation-message"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Email Options -->
+                        <div class="input-options">
+                            <div class="form-check enhanced-checkbox">
+                                <input class="form-check-input" type="checkbox" id="sendInvitations" checked>
+                                <label class="form-check-label enhanced-label" for="sendInvitations">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Send voting invitations via email
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="enhanced-actions">
+                            <div class="primary-actions">
+                                <button id="addParticipantsBtn" class="btn btn-success enhanced-btn" onclick="addParticipantsFromText()">
+                                    <i class="fas fa-user-plus me-2"></i>Add Participants
+                                </button>
+                                <button id="addSingleParticipantBtn" class="btn btn-primary enhanced-btn" onclick="addSingleParticipant()" style="display: none;">
+                                    <i class="fas fa-user-plus me-2"></i>Add Participant
+                                </button>
+                            </div>
+                            <div class="secondary-actions">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="clearParticipantForm()">
+                                    <i class="fas fa-eraser me-1"></i>Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Participants List Header -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted"><i class="fas fa-users me-2"></i>Current Participants</span>
+                        <button id="copyAllLinksBtn" class="btn btn-info btn-sm" onclick="copyAllParticipantLinks()" 
+                                style="display: none;" title="Copy all voting links with participant emails">
+                            <i class="fas fa-link me-1"></i>Copy All Links
+                        </button>
+                    </div>
+                    
+                    <div id="participantsList" class="participant-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Loading participants...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Actions & Info -->
+            <div class="col-lg-4">
+                <!-- Quick Actions -->
+                <div class="section-card">
+                    <h5><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary-custom" onclick="viewResults()">
+                            <i class="fas fa-chart-bar me-2"></i>View Results
+                        </button>
+                        <button class="btn btn-success-custom" onclick="sendInvitations()">
+                            <i class="fas fa-envelope me-2"></i>Send Invitations
+                        </button>
+                        <button id="copyAllLinksMainBtn" class="btn btn-info-custom" onclick="copyAllParticipantLinks()" style="display: none;">
+                            <i class="fas fa-link me-2"></i>Copy All Voting Links
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="copyAdminLink()">
+                            <i class="fas fa-copy me-2"></i>Copy Admin Link
+                        </button>
+                        <hr>
+                        <button class="btn btn-danger-custom" onclick="deleteSession()">
+                            <i class="fas fa-trash me-2"></i>Delete Session
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Session Stats -->
+                <div class="section-card">
+                    <h5><i class="fas fa-chart-pie me-2"></i>Statistics</h5>
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <h4 id="itemsCount" class="text-primary">0</h4>
+                            <small class="text-muted">Items</small>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <h4 id="participantsCount" class="text-info">0</h4>
+                            <small class="text-muted">Participants</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 id="votesCount" class="text-success">0</h4>
+                            <small class="text-muted">Votes</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 id="completionRate" class="text-warning">0%</h4>
+                            <small class="text-muted">Voted</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const sessionId = '{{ session.id }}';
+        let sessionData = null; // Global variable to store session data
+        
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSessionData();
+            // Refresh every 10 seconds
+            setInterval(loadSessionData, 10000);
+        });
+
+        // Load session data
+        async function loadSessionData() {
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}`);
+                const session = await response.json();
+                
+                // Store globally for use in other functions
+                sessionData = session;
+                
+                // Update header
+                document.getElementById('sessionTitle').textContent = session.title;
+                document.getElementById('sessionDescription').textContent = session.description || 'No description';
+                document.getElementById('sessionCreated').textContent = new Date(session.created).toLocaleDateString();
+                
+                // Update status
+                const statusElement = document.getElementById('sessionStatus');
+                statusElement.textContent = session.status;
+                statusElement.className = `status-badge status-${session.status}`;
+                
+                // Update buttons
+                const startBtn = document.getElementById('startBtn');
+                const completeBtn = document.getElementById('completeBtn');
+                
+                startBtn.style.display = session.status === 'draft' ? 'inline-block' : 'none';
+                completeBtn.style.display = session.status === 'active' ? 'inline-block' : 'none';
+                
+                // Load items and participants
+                loadItems(session.items || []);
+                loadParticipants(session.participants || {});
+                
+                // Update stats
+                updateStats(session);
+                
+            } catch (error) {
+                console.error('Error loading session data:', error);
+                showAlert('Error loading session data', 'danger');
+            }
+        }
+
+        // Load items
+        function loadItems(items) {
+            const container = document.getElementById('itemsList');
+            
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-3 text-muted">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <p>No voting items yet</p>
+                        <small>Add items for participants to vote on</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = items.map(item => `
+                <div class="item">
+                    <div>
+                        <strong>${escapeHtml(item.name)}</strong>
+                        ${item.description ? `<br><small class="text-muted">${escapeHtml(item.description)}</small>` : ''}
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm" onclick="removeItem(${item.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Load participants
+        function loadParticipants(participants) {
+            const container = document.getElementById('participantsList');
+            const copyAllBtn = document.getElementById('copyAllLinksBtn');
+            const copyAllMainBtn = document.getElementById('copyAllLinksMainBtn');
+            const participantEntries = Object.entries(participants);
+            
+            if (participantEntries.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-3 text-muted">
+                        <i class="fas fa-users fa-2x mb-2"></i>
+                        <p>No participants yet</p>
+                        <small>Add participants to start voting</small>
+                    </div>
+                `;
+                copyAllBtn.style.display = 'none';
+                copyAllMainBtn.style.display = 'none';
+                return;
+            }
+            
+            // Show Copy All Links buttons when there are participants
+            copyAllBtn.style.display = 'block';
+            copyAllMainBtn.style.display = 'block';
+            
+            container.innerHTML = participantEntries.map(([id, participant]) => `
+                <div class="participant">
+                    <div>
+                        <strong>${escapeHtml(participant.email)}</strong>
+                        <br><small class="text-muted">
+                            ${participant.voted ? 
+                                '<i class="fas fa-check text-success"></i> Voted' : 
+                                '<i class="fas fa-clock text-warning"></i> Not voted'
+                            }
+                        </small>
+                    </div>
+                    <div class="participant-actions">
+                        <button class="btn btn-success btn-sm me-2" onclick="sendIndividualInvitation('${id}')" 
+                                title="Send invitation to ${escapeHtml(participant.email)}"
+                                data-bs-toggle="tooltip" data-bs-placement="top">
+                            <i class="fas fa-envelope"></i>
+                        </button>
+                        <button class="btn btn-primary btn-sm me-2" onclick="copyParticipantLink('${id}')" 
+                                title="Copy unique voting link for ${escapeHtml(participant.email)}"
+                                data-bs-toggle="tooltip" data-bs-placement="top">
+                            <i class="fas fa-link"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="removeParticipant('${id}')"
+                                title="Remove participant"
+                                data-bs-toggle="tooltip" data-bs-placement="top">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Initialize tooltips for the newly created elements
+            const tooltips = container.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltips.forEach(tooltip => {
+                new bootstrap.Tooltip(tooltip);
+            });
+        }
+
+        // Update stats
+        function updateStats(session) {
+            const items = session.items || [];
+            const participants = Object.entries(session.participants || {});
+            const votes = Object.entries(session.votes || {});
+            const votedCount = participants.filter(([id, p]) => p.voted).length;
+            const completionRate = participants.length > 0 ? Math.round((votedCount / participants.length) * 100) : 0;
+            
+            document.getElementById('itemsCount').textContent = items.length;
+            document.getElementById('participantsCount').textContent = participants.length;
+            document.getElementById('votesCount').textContent = votes.length;
+            document.getElementById('completionRate').textContent = completionRate + '%';
+        }
+
+        // Enhanced UI Functions
+
+        // Switch between input modes
+        function switchInputMode(mode, type) {
+            // Update tabs
+            const tabs = document.querySelectorAll(`#${type}BulkMode`).length > 0 ? 
+                document.querySelectorAll('.input-tab') : [];
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update modes
+            if (type === 'items') {
+                document.getElementById('itemsBulkMode').classList.toggle('active', mode === 'bulk');
+                document.getElementById('itemsSingleMode').classList.toggle('active', mode === 'single');
+                document.getElementById('addItemsBtn').style.display = mode === 'bulk' ? 'block' : 'none';
+                document.getElementById('addSingleItemBtn').style.display = mode === 'single' ? 'block' : 'none';
+            } else if (type === 'participants') {
+                document.getElementById('participantsBulkMode').classList.toggle('active', mode === 'bulk');
+                document.getElementById('participantsSingleMode').classList.toggle('active', mode === 'single');
+                document.getElementById('addParticipantsBtn').style.display = mode === 'bulk' ? 'block' : 'none';
+                document.getElementById('addSingleParticipantBtn').style.display = mode === 'single' ? 'block' : 'none';
+            }
+        }
+
+        // Update items preview
+        function updateItemsPreview() {
+            const textarea = document.getElementById('itemsTextarea');
+            const preview = document.getElementById('itemsPreview');
+            const previewList = document.getElementById('itemsPreviewList');
+            const lineCounter = document.getElementById('itemsLineCount');
+            
+            const text = textarea.value.trim();
+            const lines = text ? text.split('\n').filter(line => line.trim()) : [];
+            
+            lineCounter.textContent = lines.length;
+            
+            if (lines.length === 0) {
+                preview.style.display = 'none';
+                return;
+            }
+            
+            preview.style.display = 'block';
+            previewList.innerHTML = lines.map(line => {
+                const trimmedLine = line.trim();
+                const parts = trimmedLine.split(' - ');
+                const name = parts[0].trim();
+                const description = parts[1] ? parts[1].trim() : '';
+                
+                const isValid = name.length > 0 && name.length <= 100;
+                const className = isValid ? 'valid' : 'invalid';
+                
+                return `
+                    <div class="preview-item ${className}">
+                        <span class="item-name">${escapeHtml(name)}</span>
+                        ${description ? `<span class="item-description">- ${escapeHtml(description)}</span>` : ''}
+                        ${!isValid ? '<span class="text-danger ms-2">(Invalid: too long)</span>' : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update participants preview
+        function updateParticipantsPreview() {
+            const textarea = document.getElementById('participantsTextarea');
+            const preview = document.getElementById('participantsPreview');
+            const previewList = document.getElementById('participantsPreviewList');
+            const lineCounter = document.getElementById('participantsLineCount');
+            
+            const text = textarea.value.trim();
+            const lines = text ? text.split('\n').filter(line => line.trim()) : [];
+            
+            lineCounter.textContent = lines.length;
+            
+            if (lines.length === 0) {
+                preview.style.display = 'none';
+                return;
+            }
+            
+            preview.style.display = 'block';
+            previewList.innerHTML = lines.map(line => {
+                const email = line.trim();
+                const isValid = isValidEmail(email);
+                const className = isValid ? 'valid' : 'invalid';
+                const icon = isValid ? 'fas fa-check' : 'fas fa-times';
+                
+                return `
+                    <div class="preview-item ${className}">
+                        <i class="${icon} me-2"></i>
+                        ${escapeHtml(email)}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Validate single email input
+        function validateSingleEmail() {
+            const input = document.getElementById('singleParticipantEmail');
+            const validation = document.getElementById('singleEmailValidation');
+            const email = input.value.trim();
+            
+            if (!email) {
+                validation.innerHTML = '';
+                validation.className = 'validation-message';
+                return;
+            }
+            
+            const isValid = isValidEmail(email);
+            if (isValid) {
+                validation.innerHTML = '<i class="fas fa-check me-1"></i>Valid email address';
+                validation.className = 'validation-message valid';
+            } else {
+                validation.innerHTML = '<i class="fas fa-times me-1"></i>Invalid email format';
+                validation.className = 'validation-message invalid';
+            }
+        }
+
+        // Paste from clipboard
+        async function pasteFromClipboard(textareaId) {
+            try {
+                const text = await navigator.clipboard.readText();
+                const textarea = document.getElementById(textareaId);
+                
+                // Insert at current cursor position or append
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const currentValue = textarea.value;
+                
+                textarea.value = currentValue.substring(0, start) + text + currentValue.substring(end);
+                textarea.focus();
+                
+                // Trigger preview updates
+                if (textareaId === 'itemsTextarea') {
+                    updateItemsPreview();
+                } else if (textareaId === 'participantsTextarea') {
+                    updateParticipantsPreview();
+                }
+                
+                showAlert('Text pasted from clipboard', 'success');
+            } catch (err) {
+                showAlert('Could not paste from clipboard. Please use Ctrl+V instead.', 'warning');
+            }
+        }
+
+        // Initialize enhanced UI on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up initial event listeners
+            const itemsTextarea = document.getElementById('itemsTextarea');
+            const participantsTextarea = document.getElementById('participantsTextarea');
+            const singleEmail = document.getElementById('singleParticipantEmail');
+            
+            if (itemsTextarea) {
+                itemsTextarea.addEventListener('input', updateItemsPreview);
+                itemsTextarea.addEventListener('paste', () => setTimeout(updateItemsPreview, 50));
+            }
+            
+            if (participantsTextarea) {
+                participantsTextarea.addEventListener('input', updateParticipantsPreview);
+                participantsTextarea.addEventListener('paste', () => setTimeout(updateParticipantsPreview, 50));
+            }
+            
+            if (singleEmail) {
+                singleEmail.addEventListener('input', validateSingleEmail);
+            }
+        });
+
+        // Toggle add item form (legacy compatibility)
+        function toggleAddItemForm() {
+            // Forms are now always visible - no action needed
+        }
+
+        // Toggle add participant form (legacy compatibility) 
+        function toggleAddParticipantForm() {
+            // Forms are now always visible - no action needed
+        }
+        
+        // Clear item form
+        function clearItemForm() {
+            document.getElementById('itemsTextarea').value = '';
+            document.getElementById('singleItemName').value = '';
+            document.getElementById('singleItemDescription').value = '';
+            document.getElementById('itemsPreview').style.display = 'none';
+            document.getElementById('itemsLineCount').textContent = '0';
+        }
+        
+        // Clear participant form
+        function clearParticipantForm() {
+            document.getElementById('participantsTextarea').value = '';
+            document.getElementById('singleParticipantEmail').value = '';
+            document.getElementById('sendInvitations').checked = true;
+            document.getElementById('participantsPreview').style.display = 'none';
+            document.getElementById('participantsLineCount').textContent = '0';
+            document.getElementById('singleEmailValidation').innerHTML = '';
+        }
+        
+        // Add multiple items from textarea
+        async function addItemsFromText() {
+            const textarea = document.getElementById('itemsTextarea');
+            const addBtn = document.getElementById('addItemsBtn');
+            const text = textarea.value.trim();
+            
+            if (!text) {
+                showAlert('Please enter at least one item', 'warning');
+                return;
+            }
+            
+            // Prevent double submission
+            if (addBtn.disabled) {
+                return;
+            }
+            
+            // Set loading state
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Items...';
+            addBtn.disabled = true;
+            
+            const lines = text.split('\n').filter(line => line.trim());
+            let addedCount = 0;
+            let errors = [];
+            
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+                
+                // Parse line - split by dash if present
+                const parts = trimmedLine.split(' - ');
+                const name = parts[0].trim();
+                const description = parts[1] ? parts[1].trim() : '';
+                
+                if (name.length > 100) {
+                    errors.push(`Item "${name.substring(0, 30)}..." is too long (max 100 characters)`);
+                    continue;
+                }
+                
+                try {
+                    const response = await fetch(`/api/sessions/${sessionId}/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        addedCount++;
+                    } else {
+                        errors.push(`Failed to add "${name}": ${result.error}`);
+                    }
+                } catch (error) {
+                    errors.push(`Failed to add "${name}": Network error`);
+                }
+            }
+            
+            // Show results
+            if (addedCount > 0) {
+                showAlert(`Successfully added ${addedCount} item${addedCount > 1 ? 's' : ''}!`, 'success');
+                clearItemForm();
+                toggleAddItemForm();
+                loadSessionData();
+            }
+            
+            if (errors.length > 0) {
+                showAlert(`Some errors occurred: ${errors.join(', ')}`, 'warning');
+            }
+            
+            if (addedCount === 0 && errors.length === 0) {
+                showAlert('No valid items found to add', 'warning');
+            }
+            
+            // Reset button state
+            addBtn.innerHTML = originalText;
+            addBtn.disabled = false;
+        }
+        
+        // Add single item
+        async function addSingleItem() {
+            const name = document.getElementById('singleItemName').value.trim();
+            const description = document.getElementById('singleItemDescription').value.trim();
+            const addBtn = document.getElementById('addSingleItemBtn');
+            
+            if (!name) {
+                showAlert('Please enter an item name', 'warning');
+                document.getElementById('singleItemName').focus();
+                return;
+            }
+            
+            if (name.length > 100) {
+                showAlert('Item name is too long (max 100 characters)', 'warning');
+                return;
+            }
+            
+            // Prevent double submission
+            if (addBtn.disabled) {
+                return;
+            }
+            
+            // Set loading state
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+            addBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Item added successfully!', 'success');
+                    clearItemForm();
+                    loadSessionData();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to add item', 'danger');
+            } finally {
+                // Reset button state
+                addBtn.innerHTML = originalText;
+                addBtn.disabled = false;
+            }
+        }
+
+        // Add item (legacy function for backwards compatibility)
+        async function addItem() {
+            // Switch to bulk mode and focus textarea
+            switchInputMode('bulk', 'items');
+            setTimeout(() => {
+                document.getElementById('itemsTextarea').focus();
+            }, 100);
+        }
+
+        // Remove item
+        async function removeItem(itemId) {
+            if (!confirm('Remove this item?')) return;
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/items/${itemId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Item removed successfully!', 'success');
+                    loadSessionData();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to remove item', 'danger');
+            }
+        }
+        
+        // Email validation
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+        
+        // Add multiple participants from textarea
+        async function addParticipantsFromText() {
+            const textarea = document.getElementById('participantsTextarea');
+            const addBtn = document.getElementById('addParticipantsBtn');
+            const text = textarea.value.trim();
+            
+            if (!text) {
+                showAlert('Please enter at least one email address', 'warning');
+                return;
+            }
+            
+            // Prevent double submission
+            if (addBtn.disabled) {
+                return;
+            }
+            
+            // Set loading state
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Participants...';
+            addBtn.disabled = true;
+            
+            const lines = text.split('\n').filter(line => line.trim());
+            let addedCount = 0;
+            let errors = [];
+            let duplicates = [];
+            const sendInvitations = document.getElementById('sendInvitations').checked;
+            
+            for (const line of lines) {
+                const email = line.trim();
+                if (!email) continue;
+                
+                if (!isValidEmail(email)) {
+                    errors.push(`Invalid email: ${email}`);
+                    continue;
+                }
+                
+                try {
+                    const response = await fetch(`/api/sessions/${sessionId}/participants`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            email: email,
+                            send_invitation: sendInvitations
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        addedCount++;
+                        // Check if invitation failed to send
+                        if (result.warning) {
+                            errors.push(`${email}: ${result.warning}`);
+                        }
+                    } else if (result.error && result.error.includes('already exists')) {
+                        duplicates.push(email);
+                    } else {
+                        errors.push(`Failed to add ${email}: ${result.error}`);
+                    }
+                } catch (error) {
+                    errors.push(`Failed to add ${email}: Network error`);
+                }
+            }
+            
+            // Show results
+            let message = '';
+            if (addedCount > 0) {
+                message = `Successfully added ${addedCount} participant${addedCount > 1 ? 's' : ''}!`;
+                if (sendInvitations) {
+                    message += ' Invitations have been sent.';
+                }
+                showAlert(message, 'success');
+                clearParticipantForm();
+                toggleAddParticipantForm();
+                loadSessionData();
+            }
+            
+            if (duplicates.length > 0) {
+                showAlert(`${duplicates.length} email${duplicates.length > 1 ? 's' : ''} already added: ${duplicates.join(', ')}`, 'info');
+            }
+            
+            if (errors.length > 0) {
+                showAlert(`Some errors occurred: ${errors.join(', ')}`, 'warning');
+            }
+            
+            if (addedCount === 0 && duplicates.length === 0 && errors.length === 0) {
+                showAlert('No valid email addresses found to add', 'warning');
+            }
+            
+            // Reset button state
+            addBtn.innerHTML = originalText;
+            addBtn.disabled = false;
+        }
+        
+        // Add single participant
+        async function addSingleParticipant() {
+            const email = document.getElementById('singleParticipantEmail').value.trim();
+            const sendInvitations = document.getElementById('sendInvitations').checked;
+            
+            if (!email) {
+                showAlert('Please enter an email address', 'warning');
+                document.getElementById('singleParticipantEmail').focus();
+                return;
+            }
+            
+            if (!isValidEmail(email)) {
+                showAlert('Please enter a valid email address', 'warning');
+                document.getElementById('singleParticipantEmail').focus();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/participants`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: email,
+                        send_invitation: sendInvitations
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    let message = 'Participant added successfully!';
+                    let alertType = 'success';
+                    
+                    if (sendInvitations) {
+                        if (result.invitation_sent === false && result.warning) {
+                            message += ` However, invitation failed to send: ${result.warning}`;
+                            alertType = 'warning';
+                        } else {
+                            message += ' Invitation has been sent.';
+                        }
+                    }
+                    showAlert(message, alertType);
+                    clearParticipantForm();
+                    loadSessionData();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to add participant', 'danger');
+            }
+        }
+
+        // Add participant (legacy function for backwards compatibility)
+        async function addParticipant() {
+            // Switch to bulk mode and focus textarea
+            switchInputMode('bulk', 'participants');
+            setTimeout(() => {
+                document.getElementById('participantsTextarea').focus();
+            }, 100);
+        }
+
+        // Remove participant
+        async function removeParticipant(participantId) {
+            if (!confirm('Remove this participant?')) return;
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/participants/${participantId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Participant removed successfully!', 'success');
+                    loadSessionData();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to remove participant', 'danger');
+            }
+        }
+
+        // Start session
+        async function startSession() {
+            if (!confirm('Start this session? Participants will be able to vote.')) return;
+            
+            const startBtn = document.getElementById('startBtn');
+            const originalText = startBtn.innerHTML;
+            
+            // Set loading state
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Starting...';
+            startBtn.disabled = true;
+            startBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/start`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    startBtn.innerHTML = '<i class="fas fa-check me-1"></i>Started!';
+                    startBtn.style.background = '#28a745';
+                    showAlert('Session started successfully!', 'success');
+                    setTimeout(() => {
+                        loadSessionData();
+                    }, 1000);
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to start session', 'danger');
+            } finally {
+                // Reset button will be handled by loadSessionData()
+                setTimeout(() => {
+                    startBtn.innerHTML = originalText;
+                    startBtn.disabled = false;
+                    startBtn.style.opacity = '1';
+                }, 2000);
+            }
+        }
+
+        // Complete session
+        async function completeSession() {
+            if (!confirm('Complete this session? No more votes will be accepted.')) return;
+            
+            const completeBtn = document.getElementById('completeBtn');
+            const originalText = completeBtn.innerHTML;
+            
+            // Set loading state
+            completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Completing...';
+            completeBtn.disabled = true;
+            completeBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/complete`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    completeBtn.innerHTML = '<i class="fas fa-check me-1"></i>Completed!';
+                    completeBtn.style.background = '#28a745';
+                    showAlert('Session completed successfully!', 'success');
+                    setTimeout(() => {
+                        loadSessionData();
+                    }, 1000);
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to complete session', 'danger');
+            } finally {
+                // Reset button will be handled by loadSessionData()
+                setTimeout(() => {
+                    completeBtn.innerHTML = originalText;
+                    completeBtn.disabled = false;
+                    completeBtn.style.opacity = '1';
+                }, 2000);
+            }
+        }
+
+        // Delete session
+        async function deleteSession() {
+            if (!confirm('DELETE this session? This cannot be undone!')) return;
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Session deleted successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1000);
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to delete session', 'danger');
+            }
+        }
+
+        // Send invitations
+        async function sendInvitations() {
+            const sendBtn = document.querySelector('.btn-success-custom');
+            const originalText = sendBtn.innerHTML;
+            
+            // Set loading state
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending Invitations...';
+            sendBtn.disabled = true;
+            sendBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/send-invitations`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    sendBtn.innerHTML = '<i class="fas fa-check me-2"></i>Invitations Sent!';
+                    sendBtn.style.background = '#28a745';
+                    showAlert(`Invitations sent: ${result.sent_count} successful, ${result.failed_count} failed`, 
+                              result.failed_count > 0 ? 'warning' : 'success');
+                    setTimeout(() => {
+                        sendBtn.innerHTML = originalText;
+                        sendBtn.disabled = false;
+                        sendBtn.style.opacity = '1';
+                        sendBtn.style.background = '';
+                    }, 3000);
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                    sendBtn.innerHTML = originalText;
+                    sendBtn.disabled = false;
+                    sendBtn.style.opacity = '1';
+                }
+            } catch (error) {
+                showAlert('Failed to send invitations', 'danger');
+                sendBtn.innerHTML = originalText;
+                sendBtn.disabled = false;
+                sendBtn.style.opacity = '1';
+            }
+        }
+
+        // View results
+        function viewResults() {
+            window.open(`/results/${sessionId}`, '_blank');
+        }
+
+        // Open presentation
+        function openPresentation() {
+            window.open(`/present/${sessionId}`, '_blank');
+        }
+
+        // Copy admin link
+        function copyAdminLink() {
+            const link = window.location.href;
+            navigator.clipboard.writeText(link).then(() => {
+                showAlert('Admin link copied to clipboard!', 'success');
+            }).catch(() => {
+                showAlert('Failed to copy link', 'danger');
+            });
+        }
+
+        // Copy participant voting link
+        async function copyParticipantLink(participantId) {
+            try {
+                showAlert('Generating voting link...', 'info');
+                
+                const response = await fetch(`/api/sessions/${sessionId}/participants/${participantId}/link`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const fullUrl = result.full_url;
+                    await navigator.clipboard.writeText(fullUrl);
+                    showAlert('Voting link copied to clipboard!', 'success');
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to copy participant link', 'danger');
+            }
+        }
+
+        // Send individual invitation
+        async function sendIndividualInvitation(participantId) {
+            const participant = sessionData.participants[participantId];
+            if (!participant) {
+                showAlert('Participant not found', 'danger');
+                return;
+            }
+
+            try {
+                showAlert(`Sending invitation to ${participant.email}...`, 'info');
+                
+                const response = await fetch(`/api/sessions/${sessionId}/participants/${participantId}/invite`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`Invitation sent successfully to ${result.participant_email}!`, 'success');
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to send individual invitation', 'danger');
+                console.error('Send individual invitation error:', error);
+            }
+        }
+
+        // Show copy links modal
+        function showCopyLinksModal() {
+            const participants = Object.keys(sessionData?.participants || {});
+            if (participants.length === 0) {
+                showAlert('No participants to generate links for', 'warning');
+                return;
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('copyLinksModal'));
+            modal.show();
+        }
+
+        // Copy all participant voting links with clear email associations
+        async function copyAllParticipantLinks() {
+            try {
+                // Ensure session data is loaded before proceeding
+                if (!sessionData) {
+                    showAlert('Loading session data...', 'info');
+                    await loadSessionData();
+                    if (!sessionData) {
+                        showAlert('Failed to load session data. Please refresh the page.', 'danger');
+                        return;
+                    }
+                }
+
+                showAlert('Generating voting links...', 'info');
+                
+                const participants = Object.keys(sessionData.participants || {});
+                if (participants.length === 0) {
+                    showAlert('No participants to generate links for', 'warning');
+                    return;
+                }
+
+                let allLinks = [];
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const participantId of participants) {
+                    try {
+                        const response = await fetch(`/api/sessions/${sessionId}/participants/${participantId}/link`);
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            const participant = sessionData.participants[participantId];
+                            const status = participant.voted ? '✅ Already voted' : '⏳ Pending vote';
+                            allLinks.push(`📧 ${participant.email}\n🔗 ${result.full_url}\n📊 Status: ${status}`);
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } catch (error) {
+                        failCount++;
+                    }
+                }
+
+                if (allLinks.length > 0) {
+                    const formattedContent = `�️ VOTING LINKS - ${sessionData.title}
+📅 Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+
+${'═'.repeat(60)}
+
+${allLinks.join('\n\n' + '─'.repeat(50) + '\n\n')}
+
+${'═'.repeat(60)}
+
+📝 IMPORTANT INSTRUCTIONS:
+• Each link is unique to the participant - DO NOT share with others
+• Links expire in 30 days from creation
+• Participants can vote only once per session
+• For support, contact the session administrator
+
+Generated by Vote For Me Voting Platform`;
+                    
+                    await navigator.clipboard.writeText(formattedContent);
+                    
+                    if (failCount > 0) {
+                        showAlert(`${successCount} voting links copied! (${failCount} failed)`, 'warning');
+                    } else {
+                        showAlert(`All ${successCount} voting links copied with email associations!`, 'success');
+                    }
+                } else {
+                    showAlert('Failed to generate any voting links', 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to copy participant links', 'danger');
+                console.error('Copy links error:', error);
+            }
+        }
+
+        // Utilities
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showAlert(message, type) {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; max-width: 400px;">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            
+            setTimeout(() => {
+                const alert = document.querySelector('.alert:last-child');
+                if (alert) alert.remove();
+            }, 5000);
+        }
+        
+        // Mobile navigation toggle
+        function toggleMobileNav() {
+            const navLinks = document.getElementById('nav-links');
+            const navToggle = document.querySelector('.nav-toggle i');
+            
+            navLinks.classList.toggle('nav-open');
+            
+            if (navLinks.classList.contains('nav-open')) {
+                navToggle.className = 'fas fa-times';
+            } else {
+                navToggle.className = 'fas fa-bars';
+            }
+        }
+
+        // Close mobile nav when clicking outside
+        document.addEventListener('click', function(e) {
+            const navPane = document.querySelector('.nav-pane');
+            const navLinks = document.getElementById('nav-links');
+            
+            if (!navPane.contains(e.target) && navLinks.classList.contains('nav-open')) {
+                navLinks.classList.remove('nav-open');
+                document.querySelector('.nav-toggle i').className = 'fas fa-bars';
+            }
+        });
+
+        // Navigation hide-on-scroll functionality
+        let lastScrollTop = 0;
+        let scrollTimeout;
+        const navigation = document.getElementById('navigation');
+        
+        function handleNavVisibility() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Clear existing timeout
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            
+            // Show navigation when scrolling up or at top
+            if (scrollTop < lastScrollTop || scrollTop <= 50) {
+                navigation.classList.remove('nav-hidden');
+            } else if (scrollTop > 100) {
+                // Hide navigation when scrolling down past 100px
+                navigation.classList.add('nav-hidden');
+            }
+            
+            lastScrollTop = scrollTop;
+            
+            // Always show navigation after user stops scrolling for 2 seconds
+            scrollTimeout = setTimeout(() => {
+                navigation.classList.remove('nav-hidden');
+            }, 2000);
+        }
+        
+        // Add scroll listener
+        window.addEventListener('scroll', handleNavVisibility, { passive: true });
+        
+        // Show navigation on mouse move near top
+        document.addEventListener('mousemove', function(e) {
+            if (e.clientY <= 100) {
+                navigation.classList.remove('nav-hidden');
+            }
+        });
+    </script>
+</body>
+</html>

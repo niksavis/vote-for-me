@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Vote For Me</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        /* Mobile-First Unified Navigation Pane */
+        .nav-pane {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .nav-brand {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .nav-brand:hover {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #333;
+            padding: 0.25rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-toggle:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .btn-nav {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .btn-nav:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .btn-nav.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-nav.active:hover {
+            background: #5a6fd8;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-toggle {
+                display: block;
+            }
+            
+            .nav-links {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(15px);
+                flex-direction: column;
+                padding: 1rem;
+                gap: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                transform: translateY(-100%);
+                opacity: 0;
+                pointer-events: none;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            }
+            
+            .nav-links.nav-open {
+                transform: translateY(0);
+                opacity: 1;
+                pointer-events: all;
+            }
+            
+            .btn-nav {
+                width: 100%;
+                justify-content: flex-start;
+                padding: 0.75rem 1rem;
+            }
+        }
+        
+        /* Main Content */
+        .container {
+            padding-top: 6rem;
+        }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .header-section h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            margin-bottom: 0.5rem;
+        }
+        
+        .header-section p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+        }
+        
+        .stats-overview {
+            margin: 2rem 0;
+        }
+        
+        .stats-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 1.5rem;
+            text-align: center;
+            color: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stats-card h3 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stats-card small {
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+        
+        .main-actions {
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .btn-create-session {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 15px 40px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-create-session:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(40, 167, 69, 0.5);
+            background: linear-gradient(135deg, #32b249 0%, #24d0a1 100%);
+            color: white;
+        }
+        
+        .sessions-container {
+            margin-top: 2rem;
+        }
+        
+        .session-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #333;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .session-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .session-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+        
+        .session-description {
+            color: #666;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+        
+        .session-stats {
+            display: flex;
+            gap: 2rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .status-badge {
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-draft { 
+            background: linear-gradient(135deg, #ffc107 0%, #ffed4e 100%);
+            color: #333;
+        }
+        .status-active { 
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .status-completed { 
+            background: linear-gradient(135deg, #6c757d 0%, #adb5bd 100%);
+            color: white;
+        }
+        
+        .session-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        
+        .btn-action {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary-action {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary-action {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .btn-success-action {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .btn-danger-action {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+        
+        .btn-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+        
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 10px;
+            padding: 1rem 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 6rem 1rem 2rem 1rem;
+            }
+            
+            .header-section h1 {
+                font-size: 2rem;
+            }
+            
+            .session-stats {
+                gap: 1rem;
+            }
+            
+            .btn-create-session {
+                font-size: 1.1rem;
+                padding: 12px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile-First Navigation Pane -->
+    <nav class="nav-pane">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <i class="fas fa-vote-yea me-1"></i>
+                Vote For Me
+            </a>
+            <button class="nav-toggle" onclick="toggleNav()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="nav-links" id="nav-links">
+                <a href="/" class="btn-nav">
+                    <i class="fas fa-home me-1"></i>
+                    Home
+                </a>
+                <a href="/admin" class="btn-nav active">
+                    <i class="fas fa-tachometer-alt me-1"></i>
+                    Admin
+                </a>
+                <a href="/config" class="btn-nav">
+                    <i class="fas fa-cog me-1"></i>
+                    Config
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header-section">
+            <h1><i class="fas fa-tachometer-alt me-3"></i>Admin Dashboard</h1>
+            <p>Manage your voting sessions with ease</p>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-overview">
+            <div class="row g-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-card">
+                        <i class="fas fa-play-circle fa-3x mb-3" style="color: #28a745;"></i>
+                        <h3 id="activeSessionsCount">{{ sessions|length if sessions else 0 }}</h3>
+                        <small>Active Sessions</small>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-card">
+                        <i class="fas fa-check-circle fa-3x mb-3" style="color: #20c997;"></i>
+                        <h3 id="completedSessionsCount">0</h3>
+                        <small>Completed</small>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-card">
+                        <i class="fas fa-users fa-3x mb-3" style="color: #ffd700;"></i>
+                        <h3 id="totalParticipants">
+                        {% set total_participants = 0 %}
+                        {% for session in sessions %}
+                            {% set total_participants = total_participants + (session.participants|length) %}
+                        {% endfor %}
+                        {{ total_participants }}
+                        </h3>
+                        <small>Total Participants</small>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="stats-card">
+                        <i class="fas fa-vote-yea fa-3x mb-3" style="color: #ff6b6b;"></i>
+                        <h3 id="totalVotes">
+                        {% set total_votes = 0 %}
+                        {% for session in sessions %}
+                            {% set total_votes = total_votes + (session.votes|length) %}
+                        {% endfor %}
+                        {{ total_votes }}
+                        </h3>
+                        <small>Total Votes</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Action -->
+        <div class="main-actions">
+            <button class="btn btn-create-session" onclick="createNewSession()" id="mainCreateBtn">
+                <i class="fas fa-plus-circle me-3"></i>Create New Voting Session
+            </button>
+        </div>
+
+        <!-- Sessions List -->
+        <div class="sessions-container">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 style="color: white; margin: 0;">Your Sessions</h3>
+                <button class="btn btn-glass" onclick="window.location.reload()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+            </div>
+            
+            <div id="sessionsList">
+                {% if sessions %}
+                    {% for session in sessions %}
+                    <div class="session-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <div class="session-title">{{ session.title }}</div>
+                                {% if session.description %}
+                                <div class="session-description">{{ session.description }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="status-badge status-{{ session.status }}">
+                                {{ session.status.title() }}
+                            </div>
+                        </div>
+                        
+                        <div class="session-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-list text-primary"></i>
+                                <span>{{ session.items|length }} items</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-users text-info"></i>
+                                <span>{{ session.participants|length }} participants</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-vote-yea text-success"></i>
+                                <span>{{ session.votes|length }} votes</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-calendar text-warning"></i>
+                                <span>Created <span class="created-date" data-date="{{ session.created }}">{{ session.created[:10] }}</span></span>
+                            </div>
+                        </div>
+                        
+                        <div class="session-actions">
+                            <a href="/admin/{{ session.id }}" class="btn-action btn-primary-action">
+                                <i class="fas fa-cog"></i>
+                                Manage
+                            </a>
+                            <a href="/results/{{ session.id }}" class="btn-action btn-secondary-action">
+                                <i class="fas fa-chart-bar"></i>
+                                Results
+                            </a>
+                            <a href="/present/{{ session.id }}" class="btn-action btn-success-action" target="_blank">
+                                <i class="fas fa-presentation-screen"></i>
+                                Present
+                            </a>
+                            {% if session.status == 'draft' %}
+                            <button class="btn-action btn-success-action" onclick="startSession('{{ session.id }}')">
+                                <i class="fas fa-play"></i>
+                                Start
+                            </button>
+                            {% endif %}
+                            {% if session.status == 'active' %}
+                            <button class="btn-action btn-secondary-action" onclick="completeSession('{{ session.id }}')">
+                                <i class="fas fa-stop"></i>
+                                Complete
+                            </button>
+                            {% endif %}
+                            <button class="btn-action btn-danger-action" onclick="deleteSession('{{ session.id }}', '{{ session.title }}')">
+                                <i class="fas fa-trash"></i>
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-vote-yea"></i>
+                        <h4>No Sessions Yet</h4>
+                        <p>Create your first voting session to get started!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script>
+        // Format dates using moment.js
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.created-date').forEach(function(element) {
+                const dateValue = element.getAttribute('data-date');
+                if (dateValue && typeof moment !== 'undefined') {
+                    element.textContent = moment(dateValue).fromNow();
+                }
+            });
+        });
+        
+        function toggleNav() {
+            const navLinks = document.getElementById('nav-links');
+            navLinks.classList.toggle('nav-open');
+        }
+        
+        // Close nav when clicking outside
+        document.addEventListener('click', function(event) {
+            const navLinks = document.getElementById('nav-links');
+            const navToggle = document.querySelector('.nav-toggle');
+            
+            if (!navLinks.contains(event.target) && !navToggle.contains(event.target)) {
+                navLinks.classList.remove('nav-open');
+            }
+        });
+
+        // Create new session - Improved form-based approach
+        async function createNewSession() {
+            const createBtn = document.getElementById('mainCreateBtn');
+            
+            // Check if form already exists
+            if (document.getElementById('newSessionForm')) {
+                document.getElementById('newSessionForm').style.display = 'block';
+                document.getElementById('sessionTitleInput').focus();
+                return;
+            }
+            
+            // Show loading state briefly
+            const originalText = createBtn.innerHTML;
+            createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-3"></i>Loading Form...';
+            createBtn.disabled = true;
+            createBtn.style.opacity = '0.8';
+            
+            setTimeout(() => {
+                createBtn.innerHTML = originalText;
+                createBtn.disabled = false;
+                createBtn.style.opacity = '1';
+            }, 500);
+            
+            // Create inline form
+            const formHtml = `
+                <div id="newSessionForm" class="card mb-4" style="border: 2px solid #667eea; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.05));">
+                    <div class="card-header" style="background: rgba(102, 126, 234, 0.1); border-bottom: 1px solid rgba(102, 126, 234, 0.2);">
+                        <h5 class="mb-0" style="color: #667eea;">
+                            <i class="fas fa-plus-circle me-2"></i>Create New Voting Session
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="sessionForm">
+                            <div class="mb-3">
+                                <label for="sessionTitleInput" class="form-label">Session Title*</label>
+                                <input type="text" class="form-control" id="sessionTitleInput" 
+                                       placeholder="e.g. Choose our Q4 2025 project focus" 
+                                       maxlength="100" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="sessionDescriptionInput" class="form-label">Description (optional)</label>
+                                <textarea class="form-control" id="sessionDescriptionInput" rows="3" 
+                                          placeholder="Brief description of what you're voting on..."
+                                          maxlength="500"></textarea>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="votesPerParticipant" class="form-label">Votes per participant</label>
+                                    <select class="form-select" id="votesPerParticipant">
+                                        <option value="3">3 votes</option>
+                                        <option value="5" selected>5 votes</option>
+                                        <option value="10">10 votes</option>
+                                        <option value="15">15 votes</option>
+                                        <option value="20">20 votes</option>
+                                        <option value="25">25 votes</option>
+                                        <option value="50">50 votes</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Session Options</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="anonymousVoting" checked>
+                                        <label class="form-check-label" for="anonymousVoting">
+                                            Anonymous voting
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn" style="background: #667eea; color: white;" id="createSessionFormBtn">
+                                    <i class="fas fa-check me-2"></i>Create Session
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="cancelSessionForm()">
+                                    <i class="fas fa-times me-2"></i>Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            // Insert form after main actions
+            const mainActions = document.querySelector('.main-actions');
+            mainActions.insertAdjacentHTML('afterend', formHtml);
+            
+            // Setup form handling
+            document.getElementById('sessionForm').addEventListener('submit', handleSessionSubmit);
+            document.getElementById('sessionTitleInput').focus();
+        }
+        
+        function cancelSessionForm() {
+            const form = document.getElementById('newSessionForm');
+            if (form) {
+                form.remove();
+            }
+        }
+        
+        async function handleSessionSubmit(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('sessionTitleInput').value.trim();
+            const description = document.getElementById('sessionDescriptionInput').value.trim();
+            const votesPerParticipant = parseInt(document.getElementById('votesPerParticipant').value);
+            const anonymous = document.getElementById('anonymousVoting').checked;
+            
+            if (!title) {
+                showError('Session title is required');
+                document.getElementById('sessionTitleInput').focus();
+                return;
+            }
+            
+            const submitBtn = document.getElementById('createSessionFormBtn');
+            
+            // Prevent double submission
+            if (submitBtn.disabled) {
+                return;
+            }
+            
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating Session...';
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.8';
+            submitBtn.style.pointerEvents = 'none';
+            
+            try {
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        title: title,
+                        description: description,
+                        votes_per_participant: votesPerParticipant,
+                        anonymous: anonymous
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    submitBtn.innerHTML = '<i class="fas fa-check me-2"></i>Session Created!';
+                    submitBtn.style.background = '#28a745';
+                    showSuccess('Session created successfully!');
+                    cancelSessionForm();
+                    // Redirect to detailed session management page
+                    setTimeout(() => {
+                        window.location.href = `/admin/${result.session_id}`;
+                    }, 1500);
+                } else {
+                    showError('Error creating session: ' + result.error);
+                }
+                
+            } catch (error) {
+                console.error('Error creating session:', error);
+                showError('Failed to create session. Please try again.');
+            } finally {
+                // Always reset button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.style.pointerEvents = 'auto';
+            }
+        }
+        
+        // Start session
+        async function startSession(sessionId) {
+            if (!confirm('Are you sure you want to start this session? Participants will be able to vote.')) {
+                return;
+            }
+            
+            const startBtn = event.target;
+            const originalText = startBtn.innerHTML;
+            
+            // Set loading state
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            startBtn.disabled = true;
+            startBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/start`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    startBtn.innerHTML = '<i class="fas fa-check"></i> Started!';
+                    startBtn.style.background = '#28a745';
+                    showSuccess('Session started successfully!');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showError('Error starting session: ' + result.error);
+                    startBtn.innerHTML = originalText;
+                    startBtn.disabled = false;
+                    startBtn.style.opacity = '1';
+                }
+                
+            } catch (error) {
+                console.error('Error starting session:', error);
+                showError('Failed to start session');
+                startBtn.innerHTML = originalText;
+                startBtn.disabled = false;
+                startBtn.style.opacity = '1';
+            }
+        }
+        
+        // Complete session
+        async function completeSession(sessionId) {
+            if (!confirm('Are you sure you want to complete this session? No more votes will be accepted.')) {
+                return;
+            }
+            
+            const completeBtn = event.target;
+            const originalText = completeBtn.innerHTML;
+            
+            // Set loading state
+            completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completing...';
+            completeBtn.disabled = true;
+            completeBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/complete`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    completeBtn.innerHTML = '<i class="fas fa-check"></i> Completed!';
+                    completeBtn.style.background = '#28a745';
+                    showSuccess('Session completed successfully!');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showError('Error completing session: ' + result.error);
+                    completeBtn.innerHTML = originalText;
+                    completeBtn.disabled = false;
+                    completeBtn.style.opacity = '1';
+                }
+                
+            } catch (error) {
+                console.error('Error completing session:', error);
+                showError('Failed to complete session');
+                completeBtn.innerHTML = originalText;
+                completeBtn.disabled = false;
+                completeBtn.style.opacity = '1';
+            }
+        }
+        
+        // Delete session
+        async function deleteSession(sessionId, sessionTitle) {
+            if (!confirm(`Are you sure you want to delete "${sessionTitle}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            const deleteBtn = event.target;
+            const originalText = deleteBtn.innerHTML;
+            
+            // Set loading state
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+            deleteBtn.disabled = true;
+            deleteBtn.style.opacity = '0.8';
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    deleteBtn.innerHTML = '<i class="fas fa-check"></i> Deleted!';
+                    deleteBtn.style.background = '#28a745';
+                    showSuccess('Session deleted successfully!');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showError('Error deleting session: ' + result.error);
+                    deleteBtn.innerHTML = originalText;
+                    deleteBtn.disabled = false;
+                    deleteBtn.style.opacity = '1';
+                }
+                
+            } catch (error) {
+                console.error('Error deleting session:', error);
+                showError('Failed to delete session');
+                deleteBtn.innerHTML = originalText;
+                deleteBtn.disabled = false;
+                deleteBtn.style.opacity = '1';
+            }
+        }
+        
+        // Show success message
+        function showSuccess(message) {
+            const alertHtml = `
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            
+            setTimeout(() => {
+                const alert = document.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+        
+        // Show error message
+        function showError(message) {
+            const alertHtml = `
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            
+            setTimeout(() => {
+                const alert = document.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
