@@ -429,8 +429,8 @@
 
         <!-- Stats Overview -->
         <div class="stats-overview">
-            <div class="row g-4">
-                <div class="col-lg-3 col-md-6">
+            <div class="row g-4 justify-content-center">
+                <div class="col-lg-4 col-md-6">
                     <div class="stats-card">
                         <i class="fas fa-play-circle fa-3x mb-3" style="color: #28a745;"></i>
                         <h3 id="activeSessionsCount">{{ sessions|length if sessions else 0 }}</h3>
@@ -438,39 +438,11 @@
                     </div>
                 </div>
                 
-                <div class="col-lg-3 col-md-6">
+                <div class="col-lg-4 col-md-6">
                     <div class="stats-card">
                         <i class="fas fa-check-circle fa-3x mb-3" style="color: #20c997;"></i>
                         <h3 id="completedSessionsCount">0</h3>
                         <small>Completed</small>
-                    </div>
-                </div>
-                
-                <div class="col-lg-3 col-md-6">
-                    <div class="stats-card">
-                        <i class="fas fa-users fa-3x mb-3" style="color: #ffd700;"></i>
-                        <h3 id="totalParticipants">
-                        {% set total_participants = 0 %}
-                        {% for session in sessions %}
-                            {% set total_participants = total_participants + (session.participants|length) %}
-                        {% endfor %}
-                        {{ total_participants }}
-                        </h3>
-                        <small>Total Participants</small>
-                    </div>
-                </div>
-                
-                <div class="col-lg-3 col-md-6">
-                    <div class="stats-card">
-                        <i class="fas fa-vote-yea fa-3x mb-3" style="color: #ff6b6b;"></i>
-                        <h3 id="totalVotes">
-                        {% set total_votes = 0 %}
-                        {% for session in sessions %}
-                            {% set total_votes = total_votes + (session.votes|length) %}
-                        {% endfor %}
-                        {{ total_votes }}
-                        </h3>
-                        <small>Total Votes</small>
                     </div>
                 </div>
             </div>
