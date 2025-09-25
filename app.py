@@ -3,7 +3,7 @@ Voting Application - Main Flask Application
 A web-based voting platform with real-time results and anonymous participation.
 """
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session as flask_session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import json
@@ -13,6 +13,7 @@ import ssl
 import csv
 import re
 import socket
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from io import StringIO
@@ -203,13 +204,13 @@ def require_auth(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        from flask import session, redirect, request
+        from flask import redirect
 
-        if not auth_manager.is_authenticated(session):
+        if not auth_manager.is_authenticated(flask_session):
             # Store the original URL to redirect back after login, but only for non-API routes
             # API routes should not be used for user navigation after login
             if not request.path.startswith("/api/"):
-                session["next_url"] = request.url
+                flask_session["next_url"] = request.url
             return redirect("/login")
         return f(*args, **kwargs)
 
@@ -303,7 +304,6 @@ class SessionScheduler:
             return
 
         self.running = True
-        import threading
 
         def background_checker():
             while self.running:
@@ -313,8 +313,6 @@ class SessionScheduler:
                     logger.error(f"Error in scheduled session checker: {e}")
 
                 # Sleep for check interval
-                import time
-
                 time.sleep(self.check_interval)
 
         thread = threading.Thread(target=background_checker, daemon=True)
@@ -436,7 +434,7 @@ class SessionScheduler:
         """Send notifications when voting becomes available"""
         try:
             # Get email configuration
-            config = load_config()
+            config = config_manager.get("email") or {}
             if not config.get("email_enabled", False):
                 logger.info(
                     f"Email not enabled, skipping start notifications for session {session.id}"
@@ -453,14 +451,11 @@ class SessionScheduler:
                         participant_link = session.generate_participant_link(email)
 
                         # Send email notification
-                        send_email(
+                        email_service.send_invitation_email(
                             email,
                             f"Voting Started: {session.title}",
-                            render_template(
-                                "email_voting_started.html",
-                                session=session,
-                                participant_link=participant_link,
-                            ),
+                            participant_link,
+                            session.description,
                         )
                         participants_notified += 1
                 except Exception as e:
