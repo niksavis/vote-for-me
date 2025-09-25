@@ -518,10 +518,6 @@
             </button>
         </div>
         
-        <!-- Progress Status Display -->
-        <div style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 20px; backdrop-filter: blur(10px);">
-            <span id="progressText">Ready to reveal results</span>
-        </div>
     </div>
 
     <!-- Scripts -->
@@ -720,12 +716,42 @@
         }
         
         function revealAll() {
-            // Fixed: Avoid while loop with setTimeout - use proper async timing
-            if (revealedCount < sessionData.results.length) {
-                revealNext();
-                // Schedule next revelation after current one completes
-                setTimeout(() => revealAll(), 500);
+            // Reveal all results at once
+            // Hide waiting message
+            if (revealedCount === 0) {
+                document.getElementById('waitingMessage').style.display = 'none';
             }
+            
+            // Reveal all remaining results instantly
+            while (revealedCount < sessionData.results.length) {
+                const result = sessionData.results[revealedCount];
+                const rank = revealedCount + 1;
+                
+                // Create result element
+                const resultElement = createResultElement(result, rank);
+                document.getElementById('resultsContainer').appendChild(resultElement);
+                
+                // Immediately show as revealed
+                resultElement.classList.add('revealed');
+                
+                // Special styling for winner
+                if (rank === 1) {
+                    resultElement.classList.add('winner');
+                }
+                
+                revealedCount++;
+            }
+            
+            // Update progress and button
+            updateProgress();
+            
+            const revealBtn = document.getElementById('revealBtn');
+            revealBtn.innerHTML = '<i class="fas fa-check"></i>';
+            revealBtn.title = 'All Revealed';
+            revealBtn.style.background = 'rgba(40, 167, 69, 0.8)';
+            
+            // Show confetti for completion
+            confetti();
         }
         
         function resetPresentation() {
@@ -742,7 +768,7 @@
             const revealBtn = document.getElementById('revealBtn');
             revealBtn.innerHTML = '<i class="fas fa-eye"></i>';
             revealBtn.title = 'Reveal Next';
-            revealBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+            revealBtn.style.background = ''; // Remove inline style to let CSS classes take effect
             
             updateProgress();
         }
