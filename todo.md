@@ -2,16 +2,44 @@
 
 ## 📋 Project Overview
 
-**Vote For Me** is a web-based voting platform that enables real-time anonymous voting sessions with encrypted participant links.
+**Vote For Me** is a web-based voting platform that enables real-time anonymous voting sessions with encrypted participant links. The application follows a **multi-user architecture** supporting three distinct user types with different access levels.
 
 ### 🏗️ Architecture
 
 - **Backend**: Flask + SocketIO (Python 3.8+)
 - **Frontend**: Bootstrap 5 + Socket.IO client
 - **Storage**: JSON file-based system with date organization
-- **Security**: AES-256 encryption for participant links
+- **Security**: AES-256 encryption for participant links + session ownership
 - **Email**: SMTP with HTML templates
 - **Real-time**: WebSocket communication for live updates
+- **Authentication**: Multi-tier access control system
+
+## 🚨 CRITICAL ARCHITECTURE REFACTOR REQUIRED
+
+### Current Problem
+
+The login system introduced breaks the core functionality. Non-authenticated users cannot access the homepage or create surveys, making the application unusable for its intended purpose.
+
+### New Architecture Requirements
+
+#### **User Types & Access Levels**
+
+1. **🔓 Public Users (No Authentication Required)**
+   - **Access**: Homepage, session creation, basic survey management
+   - **Capabilities**: Create surveys, add items, invite participants, view own surveys
+   - **Limitations**: Can only manage surveys they created (session ownership)
+   - **Storage**: Session creator ID stored in session data
+
+2. **👥 Participants (Encrypted Link Access)**
+   - **Access**: Only voting interface via encrypted invitation links
+   - **Capabilities**: Vote on survey items only
+   - **Limitations**: Cannot access admin pages, configuration, or other surveys
+   - **Security**: Access validated through encrypted participant tokens
+
+3. **🔐 Admin Users (Authentication Required)**
+   - **Access**: All surveys, configuration, system administration
+   - **Capabilities**: View/edit/delete any survey, system configuration, user management
+   - **Security**: Password-protected admin panel access
 
 ### 📁 Project Structure
 
@@ -45,6 +73,566 @@ vote-for-me/
     ├── cert.pem             # SSL certificate
     └── key.pem              # SSL private key
 ```
+
+---
+
+## 🚀 ARCHITECTURE REFACTOR IMPLEMENTATION PLAN
+
+### Phase 1: Session Ownership System
+
+#### **1.1 Add Session Creator Tracking** ✅ COMPLETED
+
+- [x] **Update VotingSession class**:
+  - Add `creator_id` field to track who created each session
+  - Add `creator_type` field ('public' or 'admin')
+  - Modify `to_dict()` method to include creator information
+  - Update session validation to check creator permissions
+
+- [x] **Implement Session Creator ID Generation**:
+  - Generate unique creator IDs for public users (high-precision timestamp + random component + UUID)
+  - Store creator ID in Flask session for public users
+  - Use 'admin' as creator ID for authenticated admin users
+  - **SECURITY FIX**: Fixed creator ID uniqueness bug that allowed cross-session visibility
+
+- [x] **Update Session Creation API**:
+  - Remove `@require_auth` from `/api/sessions` POST endpoint
+  - Add session ownership logic to session creation
+  - Validate creator permissions for session modifications
+
+#### **1.2 Session Access Control** ✅ COMPLETED
+
+- [x] **Implement Permission Checking**:
+  - Create `can_access_session(session, creator_id, is_admin)` function
+  - Create `can_modify_session(session, creator_id, is_admin)` function  
+  - Create `is_session_owner(session, creator_id, is_admin)` function for strict ownership
+  - Add ownership validation to all session modification endpoints
+  - **SECURITY FIX**: Implemented strict session ownership for `/api/my-sessions`
+
+#### **1.3 Chrome Incognito Behavior Investigation** ✅ COMPLETED
+
+- [x] **Chrome Incognito Session Sharing Analysis**:
+  - **Issue Reported**: Users in incognito windows could see each other's sessions
+  - **Root Cause Identified**: Chrome incognito tabs/windows within the same incognito session share cookie/session storage
+  - **Security Verification**: Confirmed that different browser contexts are properly isolated
+  - **Conclusion**: No security vulnerability - Chrome's intended behavior within same incognito session
+  - **Test Results**: ✅ Normal ↔ Incognito isolation working, ✅ Different incognito sessions isolated
+
+- [x] **Update Session Management Routes**:
+  - `/api/sessions/<id>` - Check ownership before allowing access
+  - `/api/sessions/<id>/participants` - Verify creator permissions
+  - `/api/sessions/<id>/start` - Allow creator or admin only
+  - `/api/sessions/<id>/complete` - Allow creator or admin only
+  - **SECURITY**: Prevented cross-user session visibility in incognito browsers
+
+### Phase 2: Route Access Restructuring
+
+#### **2.1 Remove Authentication Requirements**
+
+- [ ] **Update Public Routes** (Remove `@require_auth`):
+  - `/` - Homepage (session creation interface)
+  - `/api/sessions` POST - Session creation
+  - `/api/sessions/<id>` GET - Session details (with ownership check)
+  - `/api/sessions/<id>/participants` - Participant management (with ownership check)
+  - `/api/sessions/<id>/start` - Start session (with ownership check)
+  - `/api/sessions/<id>/complete` - Complete session (with ownership check)
+
+- [ ] **Keep Admin-Only Routes** (Keep `@require_auth`):
+  - `/admin` - Admin dashboard (all sessions)
+  - `/admin/<session_id>` - Admin session management
+  - `/config` - Email/system configuration
+  - `/api/config` - Configuration API
+  - `/api/sessions` GET (list all) - Admin session overview
+
+#### **2.2 Create Session Management Interface**
+
+- [ ] **Public Session Management Page**:
+  - Create `/manage/<session_id>` route for public session management
+  - Implement session ownership validation
+  - Provide session management interface identical to admin interface
+  - Show only sessions created by current user
+
+- [ ] **Update Navigation**:
+  - Remove login requirement from main navigation
+  - Add "My Sessions" link for public users
+  - Keep admin login link for administrative access
+  - Show admin options only when authenticated
+
+### Phase 3: Template and UI Updates
+
+#### **3.1 Update Templates for Multi-User Support**
+
+- [ ] **Homepage (index.html)**:
+  - Remove authentication checks
+  - Enable session creation for all users
+  - Add "My Sessions" section for public users
+  - Implement creator ID tracking in browser
+
+- [ ] **Navigation Updates**:
+  - Update `shared-styles.css` navigation for public users
+  - Remove authentication requirements from navigation
+  - Add conditional admin links only when authenticated
+  - Implement "My Sessions" navigation for public users
+
+- [ ] **Session Management Interface**:
+  - Create `manage_session.html` template for public users
+  - Copy functionality from `admin_session.html`
+  - Add ownership validation to UI elements
+  - Show appropriate actions based on permissions
+
+#### **3.2 Participant Access Control**
+
+- [ ] **Voting Interface Isolation**:
+  - Ensure `/vote/<encrypted_data>` remains participant-only
+  - Remove admin navigation from voting interface
+  - Implement participant-specific UI with minimal options
+  - Block access to admin/management features from voting interface
+
+### Phase 4: Data Model Updates
+
+#### **4.1 Session Data Structure Changes**
+
+```json
+{
+  "id": "uuid",
+  "title": "Session Title",
+  "description": "Optional description", 
+  "creator_id": "browser_fingerprint_timestamp OR 'admin'",
+  "creator_type": "public|admin",
+  "created": "ISO timestamp",
+  "status": "draft|active|completed",
+  "items": [...],
+  "participants": {...},
+  "votes": {...},
+  "settings": {...}
+}
+```
+
+- [ ] **Migration Script**:
+  - Update existing sessions to include creator information
+  - Set `creator_type: "admin"` for existing sessions
+  - Generate default creator IDs for existing sessions
+
+#### **4.2 Public User Session Tracking**
+
+- [ ] **Browser-Based Creator ID**:
+  - Implement browser fingerprinting for creator identification
+  - Store creator ID in Flask session with extended expiration
+  - Handle creator ID persistence across browser sessions
+  - Implement fallback for users without cookies
+
+### Phase 5: API Security & Validation
+
+#### **5.1 Ownership Validation Middleware**
+
+- [ ] **Session Access Decorator**:
+  - Create `@require_session_access` decorator
+  - Implement ownership checking logic
+  - Allow admin override for all sessions
+  - Provide clear error messages for unauthorized access
+
+- [ ] **API Endpoint Updates**:
+  - Apply ownership validation to all session modification endpoints
+  - Update error responses to indicate ownership issues
+  - Implement proper HTTP status codes (403 Forbidden)
+  - Add logging for unauthorized access attempts
+
+#### **5.2 Participant Link Security**
+
+- [ ] **Enhanced Participant Validation**:
+  - Ensure participant links only provide voting access
+  - Block participant access to management interfaces
+  - Implement session-specific participant validation
+  - Add participant access logging
+
+### Implementation Priority Order
+
+**🔥 IMMEDIATE (Critical Path)**
+
+1. Remove `@require_auth` from session creation (`/api/sessions` POST)
+2. Remove `@require_auth` from homepage (`/`)
+3. Add `creator_id` tracking to session creation
+4. Implement basic ownership validation
+
+**📋 HIGH PRIORITY (Week 1)**
+5. Update session data model with creator fields
+6. Implement session ownership checking functions
+7. Create public session management interface
+8. Update navigation for multi-user support
+
+**⚙️ MEDIUM PRIORITY (Week 2)**
+9. Update all session management routes with ownership validation
+10. Create migration script for existing sessions
+11. Implement browser-based creator ID system
+12. Update templates for public user interface
+
+**🔧 LOW PRIORITY (Week 3)**
+13. Add comprehensive logging and monitoring
+14. Implement advanced session sharing features
+15. Add session transfer capabilities
+16. Performance optimization for multi-user scenarios
+
+---
+
+## 🔄 SMART VOTING INTERFACE ENHANCEMENT
+
+### Current Problem
+
+Participants can access voting links and attempt to vote before sessions are active, resulting in confusing "Failed to submit votes" errors. This creates poor UX and doesn't provide clear communication about session timing.
+
+### Enhanced Status-Aware Voting Interface (RECOMMENDED SOLUTION)
+
+#### **Core Concept**
+
+Transform the voting interface into a **status-aware** system that provides clear communication about session timing and prevents confusion through intelligent UI adaptation.
+
+### Phase 1: Session Timing Infrastructure
+
+#### **1.1 Enhanced Session Data Model**
+
+- [ ] **Add Session Timing Fields**:
+
+  ```json
+  {
+    "id": "uuid",
+    "title": "Session Title",
+    "status": "draft|active|completed",
+    "scheduled_start": "ISO timestamp (optional)",
+    "scheduled_end": "ISO timestamp (optional)", 
+    "timezone": "UTC offset string (e.g., '+02:00')",
+    "auto_start": "boolean - enable automatic status transitions",
+    "auto_end": "boolean - enable automatic completion",
+    "notification_sent": "boolean - track if start notification sent",
+    "created": "ISO timestamp",
+    "started_at": "ISO timestamp (when status changed to active)",
+    "completed_at": "ISO timestamp (when status changed to completed)",
+    "creator_id": "browser_fingerprint OR 'admin'",
+    "creator_type": "public|admin",
+    "items": [...],
+    "participants": {...},
+    "votes": {...},
+    "settings": {...}
+  }
+  ```
+
+- [ ] **Update VotingSession Class**:
+  - Add timing fields to `__init__` method
+  - Update `to_dict()` method to include timing information
+  - Add `can_vote_now()` method to check if voting is currently allowed
+  - Add `get_status_message()` method for participant interface messages
+  - Add `is_scheduled()` method to check if session has timing constraints
+
+#### **1.2 Automatic Session State Management**
+
+- [ ] **Create Session Scheduler Service**:
+
+  ```python
+  class SessionScheduler:
+      def check_scheduled_sessions(self):
+          """Check for sessions that should auto-start or auto-end"""
+      
+      def start_session_if_scheduled(self, session):
+          """Auto-start session if scheduled time reached"""
+      
+      def end_session_if_scheduled(self, session):
+          """Auto-complete session if end time reached"""
+      
+      def send_start_notifications(self, session):
+          """Send notifications when voting becomes available"""
+  ```
+
+- [ ] **Background Task Implementation**:
+  - Create background thread or scheduled task to check session timing
+  - Implement session state transitions based on scheduled times
+  - Add logging for automatic state changes
+  - Handle timezone conversions properly
+
+### Phase 2: Smart Voting Interface
+
+#### **2.1 Status-Aware Vote Page Template**
+
+- [ ] **Update vote.html Template Structure**:
+
+  ```html
+  <!-- Session Status Banner -->
+  <div id="session-status-banner" class="status-banner">
+      <!-- Dynamic content based on session status -->
+  </div>
+  
+  <!-- Voting Interface Container -->
+  <div id="voting-interface" class="voting-container">
+      <!-- Shows different content based on session status -->
+  </div>
+  
+  <!-- Countdown Timer (when applicable) -->
+  <div id="countdown-timer" class="countdown-display" style="display: none;">
+      <!-- Countdown to session start or end -->
+  </div>
+  ```
+
+- [ ] **Status-Specific Interface States**:
+
+  **Draft Status Interface:**
+  - Show voting items (preview mode)
+  - Replace voting controls with status message
+  - Display: "This voting session hasn't started yet. You'll be able to vote once the administrator starts the session."
+  - Show scheduled start time if available
+  - Add countdown timer for scheduled sessions
+
+  **Active Status Interface:**
+  - Full voting interface as normal
+  - Clear "Voting is Open" indicator
+  - Show remaining time if session has end time
+  - Real-time vote submission enabled
+
+  **Completed Status Interface:**
+  - Show "Voting has ended" message
+  - Display results if session settings allow
+  - Show when voting ended
+  - Disable all voting controls
+
+#### **2.2 Dynamic Interface Rendering**
+
+- [ ] **JavaScript Status Handler**:
+
+  ```javascript
+  class VotingInterfaceManager {
+      constructor(sessionData) {
+          this.session = sessionData;
+          this.init();
+      }
+      
+      init() {
+          this.renderStatusBanner();
+          this.renderVotingInterface();
+          this.setupRealTimeUpdates();
+          this.startCountdownTimer();
+      }
+      
+      renderStatusBanner() {
+          // Show appropriate status message and styling
+      }
+      
+      renderVotingInterface() {
+          // Show voting controls or disabled state based on status
+      }
+      
+      setupRealTimeUpdates() {
+          // WebSocket listeners for status changes
+      }
+      
+      startCountdownTimer() {
+          // Countdown to session start/end if applicable
+      }
+      
+      handleStatusChange(newStatus) {
+          // Update interface when session status changes
+      }
+  }
+  ```
+
+### Phase 3: Enhanced Error Handling & Messaging
+
+#### **3.1 Contextual Error Messages**
+
+- [ ] **Update Vote Submission API Error Responses**:
+
+  ```python
+  # In /api/vote endpoint
+  if session.status != "active":
+      error_messages = {
+          "draft": {
+              "message": "Voting hasn't started yet",
+              "details": "This session is still being prepared. Please wait for the administrator to start voting.",
+              "action": "wait_for_start"
+          },
+          "completed": {
+              "message": "Voting has ended", 
+              "details": "This voting session closed on {completed_at}.",
+              "action": "view_results"
+          }
+      }
+      return jsonify({
+          "success": False,
+          "error": error_messages[session.status]["message"],
+          "error_details": error_messages[session.status]["details"],
+          "error_type": "session_not_active",
+          "session_status": session.status,
+          "recommended_action": error_messages[session.status]["action"]
+      }), 400
+  ```
+
+- [ ] **Frontend Error Display Enhancement**:
+  - Replace generic error alerts with contextual status cards
+  - Show specific guidance based on error type
+  - Provide estimated wait times for scheduled sessions
+  - Add retry mechanisms for network errors
+
+#### **3.2 Real-Time Status Updates**
+
+- [ ] **WebSocket Event Enhancements**:
+
+  ```python
+  # New WebSocket events
+  @socketio.on('session_status_changed')
+  def handle_session_status_change(data):
+      """Broadcast status changes to all participants"""
+      
+  @socketio.on('session_starting_soon')  
+  def handle_session_starting_soon(data):
+      """Notify participants when session is about to start"""
+      
+  @socketio.on('voting_time_remaining')
+  def handle_voting_time_remaining(data):
+      """Update participants with remaining voting time"""
+  ```
+
+- [ ] **Participant Interface Auto-Updates**:
+  - Automatically refresh voting interface when session becomes active
+  - Show real-time countdown timers
+  - Update status messages without page refresh
+  - Handle connection loss gracefully
+
+### Phase 4: Administrator Timing Controls
+
+#### **4.1 Enhanced Session Management Interface**
+
+- [ ] **Add Timing Controls to Session Creation**:
+
+  ```html
+  <!-- Session Timing Configuration -->
+  <div class="timing-controls">
+      <h4>Session Timing</h4>
+      
+      <div class="form-check">
+          <input type="checkbox" id="schedule-session" class="form-check-input">
+          <label for="schedule-session">Schedule automatic start/end times</label>
+      </div>
+      
+      <div id="scheduling-options" style="display: none;">
+          <div class="row">
+              <div class="col-md-6">
+                  <label for="start-datetime">Start Date & Time</label>
+                  <input type="datetime-local" id="start-datetime" class="form-control">
+              </div>
+              <div class="col-md-6">
+                  <label for="end-datetime">End Date & Time</label>
+                  <input type="datetime-local" id="end-datetime" class="form-control">
+              </div>
+          </div>
+          
+          <div class="form-check mt-2">
+              <input type="checkbox" id="notify-on-start" class="form-check-input" checked>
+              <label for="notify-on-start">Send email notifications when voting opens</label>
+          </div>
+      </div>
+  </div>
+  ```
+
+- [ ] **Session Management Workflow Options**:
+  
+  **Option A: Send Invitations for Draft Sessions**
+  - Clear messaging: "Invitations sent - Voting will be available once you start the session"
+  - Warning indicator for non-active sessions
+  - Quick "Start Session Now" button
+  
+  **Option B: Start Session and Send Invitations**
+  - Combined action button: "Start Session & Send Invitations"
+  - Immediate voting availability
+  - Real-time participant access
+  
+  **Option C: Schedule Session with Automatic Start**
+  - Set future start/end times
+  - Automatic session state transitions
+  - Email notifications when voting opens
+
+#### **4.2 Session Status Dashboard**
+
+- [ ] **Enhanced Session Status Indicators**:
+
+  ```html
+  <!-- Session Status Card -->
+  <div class="session-status-card">
+      <div class="status-indicator status-{session.status}">
+          <i class="fas fa-{status_icon}"></i>
+          {status_text}
+      </div>
+      
+      <div class="timing-info">
+          <!-- Show current time, scheduled times, countdowns -->
+      </div>
+      
+      <div class="participant-access">
+          <span class="access-count">{active_participants} participants currently viewing</span>
+          <span class="vote-count">{submitted_votes} votes submitted</span>
+      </div>
+      
+      <div class="quick-actions">
+          <!-- Context-appropriate action buttons -->
+      </div>
+  </div>
+  ```
+
+### Phase 5: Advanced Features
+
+#### **5.1 Timezone Support**
+
+- [ ] **Multi-Timezone Handling**:
+  - Store session timezone preferences
+  - Display times in participant's local timezone
+  - Handle daylight saving time transitions
+  - Provide timezone selection for administrators
+
+#### **5.2 Notification System Enhancements**
+
+- [ ] **Smart Email Notifications**:
+  - "Voting is now open" emails when sessions start
+  - Reminder emails for ending sessions
+  - Scheduled session confirmation emails
+  - Participant access tracking in emails
+
+#### **5.3 Analytics & Monitoring**
+
+- [ ] **Session Timing Analytics**:
+  - Track participant access patterns vs. session status
+  - Monitor timing effectiveness
+  - Report on early access attempts
+  - Analyze optimal timing strategies
+
+### Implementation Priority Order
+
+**🔥 IMMEDIATE (Fix Current Issue)**
+
+1. Update vote submission API with contextual error messages
+2. Enhance voting interface to show session status
+3. Replace generic error messages with specific status messaging
+4. Add basic session status awareness to vote.html
+
+**📋 HIGH PRIORITY (Week 1)**
+5. Implement session timing fields in data model
+6. Create status-aware voting interface states
+7. Add real-time status updates via WebSocket
+8. Implement countdown timers for scheduled sessions
+
+**⚙️ MEDIUM PRIORITY (Week 2)**
+9. Add session scheduling controls to admin interface
+10. Implement automatic session state transitions
+11. Create background task for session timing management
+12. Add timezone support and display
+
+**🔧 LOW PRIORITY (Week 3)**
+13. Implement advanced notification system
+14. Add session timing analytics
+15. Create participant access tracking
+16. Optimize real-time performance for timing features
+
+### Expected Benefits
+
+1. **Eliminated Confusion**: Participants understand exactly when they can vote
+2. **Professional UX**: Clear, contextual messaging instead of generic errors
+3. **Flexible Timing**: Support for immediate, manual, and scheduled session starts
+4. **Real-time Updates**: Participants see status changes immediately
+5. **Better Control**: Administrators have precise timing control options
+6. **Improved Analytics**: Better insights into participant behavior and timing effectiveness
 
 ---
 
@@ -678,11 +1266,11 @@ wsproto==1.2.0
 
 ### Security Considerations
 
-- **Admin Authentication**: Currently missing - highest priority security task
+- **Multi-User Access Control**: Session ownership and admin authentication system
 - **Input Validation**: Basic validation exists but needs strengthening
 - **Rate Limiting**: Not implemented - needed for production
 - **HTTPS Enforcement**: SSL support exists but not enforced
-- **Session Management**: No timeout handling for admin sessions
+- **Session Management**: Admin timeout handling and public user session tracking
 
 ### Performance Bottlenecks
 
@@ -698,4 +1286,225 @@ wsproto==1.2.0
 4. **File Permissions**: Ensure write access to `data/` directory
 5. **Process Management**: Use gunicorn or similar for production
 
-This implementation plan provides all the information needed for an agentic AI to understand, maintain, and extend the Vote For Me application.
+## 🔍 CURRENT APPLICATION STATE ANALYSIS
+
+### Routes Currently Protected by @require_auth
+
+Based on analysis of `app.py`, these routes currently require authentication:
+
+1. **Admin Dashboard Routes**:
+   - `/admin` - Admin dashboard (line 938)
+   - `/admin/<session_id>` - Individual session admin (line 946)
+   - `/config` - Email/app configuration (line 957)
+
+2. **API Configuration Routes**:
+   - `/api/config` GET - Get configuration (line 964)
+   - `/api/config/email` PUT - Update email config (line 978)
+   - `/api/config/email/test` POST - Test email config (line 1019)
+
+3. **Session Management API**:
+   - `/api/sessions` GET - List all sessions (line 1027)
+   - `/api/sessions` POST - Create session (line 1051) **← CRITICAL ISSUE**
+
+### Authentication System Components
+
+- `AuthManager` class (lines 165-195): Simple password-based authentication
+- `require_auth` decorator (lines 199-216): Redirects to `/login` if not authenticated
+- `inject_auth()` context processor (lines 889-897): Provides `is_authenticated` to templates
+- Default admin password: "admin123" (hashed with SHA-256)
+
+### Session Data Model (Current)
+
+```python
+class VotingSession:
+    def __init__(self):
+        self.id = str(uuid.uuid4())
+        self.created = datetime.now(timezone.utc).isoformat()
+        self.title = ""
+        self.description = ""
+        self.items = []           # Voting items
+        self.participants = {}    # {participant_id: {email, token, voted, ...}}
+        self.votes = {}          # {participant_id: {item_id: vote_count}}
+        self.settings = {...}    # Anonymous, votes_per_participant, etc.
+        self.status = "draft"    # 'draft', 'active', 'completed'
+```
+
+**Missing Fields for Multi-User Support**:
+
+- `creator_id`: Who created this session
+- `creator_type`: 'public' or 'admin'
+
+### Participant Access System (Working Correctly)
+
+- `/vote/<encrypted_data>` - Uses AES-256 encryption per session
+- Participant data encrypted with session-specific keys
+- No authentication required - access controlled by encrypted tokens
+- Participants cannot access admin/management interfaces
+
+### Issues Requiring Immediate Fix
+
+1. **Homepage Broken**: `/` route accessible but session creation requires login
+2. **Session Creation Blocked**: `/api/sessions` POST requires `@require_auth`
+3. **No Session Ownership**: Any authenticated user can modify any session
+4. **No Public Management**: Public users cannot manage their own sessions
+
+---
+
+## 📋 IMPLEMENTATION GUIDANCE FOR AI AGENT
+
+### Step-by-Step Implementation Approach
+
+#### **CRITICAL PATH - Restore Basic Functionality**
+
+1. **Remove Authentication from Session Creation**:
+
+   ```python
+   # In app.py around line 1051, remove @require_auth
+   @app.route("/api/sessions", methods=["POST"])
+   # @require_auth  ← REMOVE THIS LINE
+   def create_session():
+   ```
+
+2. **Add Session Ownership to VotingSession Class**:
+
+   ```python
+   def __init__(self, session_data=None):
+       # ...existing fields...
+       self.creator_id = None      # Browser fingerprint or 'admin'
+       self.creator_type = "public"  # 'public' or 'admin'
+   ```
+
+3. **Generate Creator ID for Public Users**:
+
+   ```python
+   def generate_creator_id():
+       """Generate unique creator ID for public users"""
+       import time, hashlib
+       timestamp = str(int(time.time()))
+       user_agent = request.headers.get('User-Agent', '')
+       fingerprint = hashlib.md5(f"{timestamp}_{user_agent}".encode()).hexdigest()
+       return f"public_{fingerprint}_{timestamp}"
+   ```
+
+#### **Session Management Routes to Modify**
+
+**Remove @require_auth from these routes**:
+
+- `/api/sessions/<id>` (GET) - Add ownership check
+- `/api/sessions/<id>/participants` (POST) - Add ownership check  
+- `/api/sessions/<id>/start` (POST) - Add ownership check
+- `/api/sessions/<id>/complete` (POST) - Add ownership check
+
+**Keep @require_auth on these routes**:
+
+- `/admin` - Admin dashboard
+- `/admin/<session_id>` - Admin session management
+- `/config` - Configuration
+- `/api/config/*` - Configuration APIs
+- `/api/sessions` (GET) - List all sessions (admin only)
+
+#### **New Routes to Create**
+
+1. **Public Session Management**:
+
+   ```python
+   @app.route("/manage/<session_id>")
+   def manage_session(session_id):
+       """Public session management page"""
+       # Check ownership or admin access
+       # Render management interface
+   ```
+
+2. **My Sessions API**:
+
+   ```python
+   @app.route("/api/my-sessions")
+   def get_my_sessions():
+       """Get sessions created by current user"""
+       # Return sessions matching creator_id
+   ```
+
+#### **Ownership Validation Function**
+
+```python
+def can_access_session(session, creator_id=None, is_admin=False):
+    """Check if user can access session"""
+    if is_admin:
+        return True
+    if creator_id and session.creator_id == creator_id:
+        return True
+    return False
+
+def get_current_creator_id():
+    """Get creator ID from session or generate new one"""
+    from flask import session as flask_session
+    
+    if auth_manager.is_authenticated(flask_session):
+        return 'admin', True
+    
+    creator_id = flask_session.get('creator_id')
+    if not creator_id:
+        creator_id = generate_creator_id()
+        flask_session['creator_id'] = creator_id
+        flask_session.permanent = True
+    
+    return creator_id, False
+```
+
+#### **Template Updates Required**
+
+1. **Navigation (shared-styles.css related)**:
+   - Remove login requirement from main nav
+   - Add "My Sessions" link for public users
+   - Show admin link only when authenticated
+
+2. **Homepage (index.html)**:
+   - Remove authentication barriers
+   - Add "My Sessions" section
+   - Enable session creation for all
+
+3. **New Template (manage_session.html)**:
+   - Copy from admin_session.html
+   - Remove admin-specific features
+   - Add ownership validation
+
+#### **Migration Strategy**
+
+1. **Existing Sessions**: Update all existing sessions to have:
+
+   ```json
+   {
+     "creator_id": "admin",
+     "creator_type": "admin"
+   }
+   ```
+
+2. **Backward Compatibility**: Ensure old sessions without creator_id still work
+
+3. **Data Migration Script**:
+
+   ```python
+   def migrate_existing_sessions():
+       """Add creator info to existing sessions"""
+       # Update all session files to include creator fields
+   ```
+
+### Testing Strategy
+
+1. **Functionality Tests**:
+   - Public user can create sessions
+   - Public user can only manage own sessions
+   - Admin can access all sessions
+   - Participants can only vote via encrypted links
+
+2. **Security Tests**:
+   - Public users cannot access other users' sessions
+   - Participants cannot access management interfaces
+   - Admin authentication still works
+
+3. **UI/UX Tests**:
+   - Navigation works for all user types
+   - Session management interface works for public users
+   - Voting interface remains isolated
+
+This implementation plan provides all the information needed for an agentic AI to understand, maintain, and extend the Vote For Me application with the new multi-user architecture.

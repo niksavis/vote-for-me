@@ -217,6 +217,12 @@
                     <i class="fas fa-home me-1"></i>
                     Home
                 </a>
+                {% if not is_authenticated %}
+                <a href="#" class="btn-nav" onclick="showMySessions()">
+                    <i class="fas fa-list me-1"></i>
+                    My Sessions
+                </a>
+                {% endif %}
                 {% if is_authenticated %}
                 <a href="/admin" class="btn-nav">
                     <i class="fas fa-tachometer-alt me-1"></i>
@@ -233,7 +239,7 @@
                 {% else %}
                 <a href="/login" class="btn-nav">
                     <i class="fas fa-sign-in-alt me-1"></i>
-                    Login
+                    Admin Login
                 </a>
                 {% endif %}
             </div>
@@ -305,6 +311,233 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/shared.js"></script>
     <script>
+        async function showMySessions() {
+            // Show loading modal first
+            showMySessionsLoadingModal();
+            
+            try {
+                const response = await fetch('/api/my-sessions');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                // Remove loading modal
+                const loadingModal = document.getElementById('mySessionsLoadingModal');
+                if (loadingModal) {
+                    const bsModal = bootstrap.Modal.getInstance(loadingModal);
+                    if (bsModal) bsModal.hide();
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                
+                if (result.sessions && result.sessions.length > 0) {
+                    // Remove duplicates based on session ID (just in case)
+                    const uniqueSessions = result.sessions.filter((session, index, arr) => 
+                        arr.findIndex(s => s.id === session.id) === index
+                    );
+                    
+                    let sessionsList = `
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0"><i class="fas fa-list me-2"></i>My Sessions</h4>
+                            <span class="badge bg-primary">${uniqueSessions.length} session${uniqueSessions.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="list-group">
+                    `;
+                    
+                    uniqueSessions.forEach(session => {
+                        const statusIcon = session.status === 'active' ? 'fa-play text-success' : 
+                                         session.status === 'completed' ? 'fa-check text-secondary' : 'fa-edit text-warning';
+                        
+                        const createdDate = new Date(session.created).toLocaleDateString();
+                        const timeAgo = getTimeAgo(session.created);
+                        
+                        sessionsList += `
+                            <a href="/manage/${session.id}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
+                                <div class="ms-2 me-auto">
+                                    <div class="fw-bold">${escapeHtml(session.title)}</div>
+                                    <small class="text-muted">
+                                        <i class="fas ${statusIcon} me-1"></i>${session.status.charAt(0).toUpperCase() + session.status.slice(1)} • 
+                                        ${session.participants_count} participants • ${session.items_count} items
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>Created ${timeAgo} (${createdDate})
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </small>
+                                </div>
+                            </a>
+                        `;
+                    });
+                    
+                    sessionsList += '</div>';
+                    
+                    showMySessionsModal(sessionsList);
+                } else {
+                    // No sessions found
+                    showMySessionsEmptyState();
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                // Remove loading modal
+                const loadingModal = document.getElementById('mySessionsLoadingModal');
+                if (loadingModal) {
+                    const bsModal = bootstrap.Modal.getInstance(loadingModal);
+                    if (bsModal) bsModal.hide();
+                    setTimeout(() => loadingModal.remove(), 300);
+                }
+                showMySessionsErrorState(error.message);
+            }
+        }
+
+        function showMySessionsLoadingModal() {
+            // Properly cleanup any existing loading modal
+            cleanupExistingModal('mySessionsLoadingModal');
+            
+            const loadingModalHtml = `
+                <div class="modal fade" id="mySessionsLoadingModal" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog modal-sm modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-body text-center py-4">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <h6>Loading Your Sessions...</h6>
+                                <small class="text-muted">Please wait</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', loadingModalHtml);
+            const modal = new bootstrap.Modal(document.getElementById('mySessionsLoadingModal'));
+            modal.show();
+        }
+
+        function showMySessionsModal(sessionsList) {
+            const modalHtml = `
+                <div class="modal fade" id="mySessionsModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title"><i class="fas fa-user me-2"></i>My Sessions</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                ${sessionsList}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" onclick="document.getElementById('session-title').focus(); const modal = bootstrap.Modal.getInstance(document.getElementById('mySessionsModal')); modal.hide();">
+                                    <i class="fas fa-plus me-2"></i>Create New Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Properly dispose of existing modal if any
+            cleanupExistingModal('mySessionsModal');
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Create modal instance
+            const modal = new bootstrap.Modal(document.getElementById('mySessionsModal'));
+            
+            // Add cleanup on hide
+            document.getElementById('mySessionsModal').addEventListener('hidden.bs.modal', function() {
+                cleanupExistingModal('mySessionsModal');
+            }, { once: true });
+            
+            // Show modal
+            modal.show();
+        }
+
+        function cleanupExistingModal(modalId) {
+            const existingModal = document.getElementById(modalId);
+            if (existingModal) {
+                // Get Bootstrap modal instance
+                const bsModalInstance = bootstrap.Modal.getInstance(existingModal);
+                if (bsModalInstance) {
+                    // Properly dispose of Bootstrap modal instance
+                    bsModalInstance.dispose();
+                }
+                // Remove DOM element
+                existingModal.remove();
+            }
+            
+            // Clean up any lingering backdrop elements
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+            
+            // Ensure body classes are cleaned up
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+
+        function showMySessionsEmptyState() {
+            const emptyStateHtml = `
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                    <h4>No Sessions Yet</h4>
+                    <p class="text-muted mb-4">You haven't created any sessions yet.<br>Create your first session to get started!</p>
+                </div>
+            `;
+            showMySessionsModal(emptyStateHtml);
+        }
+
+        function showMySessionsErrorState(errorMessage) {
+            const errorStateHtml = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-4x text-warning mb-3"></i>
+                    <h4>Unable to Load Sessions</h4>
+                    <p class="text-muted mb-4">There was a problem loading your sessions:<br><small class="text-danger">${escapeHtml(errorMessage)}</small></p>
+                    <div class="d-grid gap-2 d-md-block">
+                        <button class="btn btn-outline-primary" onclick="showMySessions()">
+                            <i class="fas fa-redo me-2"></i>Try Again
+                        </button>
+                        <button class="btn btn-primary" onclick="document.getElementById('session-title').focus(); const modal = bootstrap.Modal.getInstance(document.getElementById('mySessionsModal')); modal.hide();">
+                            <i class="fas fa-plus me-2"></i>Create New Session
+                        </button>
+                    </div>
+                </div>
+            `;
+            showMySessionsModal(errorStateHtml);
+        }
+
+        function getTimeAgo(dateString) {
+            const now = new Date();
+            const date = new Date(dateString);
+            const diffMs = now - date;
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffDays > 7) {
+                return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) !== 1 ? 's' : ''} ago`;
+            } else if (diffDays > 0) {
+                return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+            } else if (diffHours > 0) {
+                return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+            } else {
+                return 'Less than an hour ago';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         async function createSession() {
             const title = document.getElementById('session-title').value.trim();
             const votesPerParticipant = parseInt(document.getElementById('votes-per-participant').value);
@@ -338,8 +571,8 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Success - redirect to admin page for the new session
-                    window.location.href = `/admin/${result.session.id}`;
+                    // Success - redirect to management page for the new session
+                    window.location.href = `/manage/${result.session.id}`;
                 } else {
                     showError(result.error || 'Failed to create session');
                 }

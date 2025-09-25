@@ -23,6 +23,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import hashlib
+import time
+import random
 from functools import wraps
 
 # Configure logging
@@ -201,7 +203,7 @@ def require_auth(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        from flask import session, redirect, request, url_for
+        from flask import session, redirect, request
 
         if not auth_manager.is_authenticated(session):
             # Store the original URL to redirect back after login, but only for non-API routes
@@ -218,30 +220,103 @@ def require_auth(f):
 auth_manager = AuthManager()
 
 
+def generate_creator_id():
+    """Generate unique creator ID for public users"""
+    # Use high precision timestamp and random component for uniqueness
+    timestamp = str(time.time())  # Float for microsecond precision
+    random_component = str(random.randint(100000, 999999))  # 6-digit random number
+    user_agent = request.headers.get("User-Agent", "")
+    remote_addr = request.headers.get("X-Forwarded-For", request.remote_addr)
+
+    # Combine multiple entropy sources
+    unique_string = (
+        f"{timestamp}_{random_component}_{user_agent}_{remote_addr}_{uuid.uuid4()}"
+    )
+    fingerprint = hashlib.md5(unique_string.encode()).hexdigest()
+
+    return f"public_{fingerprint}_{int(time.time())}"
+
+
+def get_current_creator_id():
+    """Get creator ID from session or generate new one"""
+    from flask import session as flask_session
+
+    if auth_manager.is_authenticated(flask_session):
+        return "admin", True
+
+    creator_id = flask_session.get("creator_id")
+    if not creator_id:
+        creator_id = generate_creator_id()
+        flask_session["creator_id"] = creator_id
+        flask_session.permanent = True
+
+    return creator_id, False
+
+
+def can_access_session(session_obj, creator_id=None, is_admin=False):
+    """Check if user can access session for management purposes"""
+    if is_admin:
+        return True
+    if (
+        creator_id
+        and hasattr(session_obj, "creator_id")
+        and session_obj.creator_id == creator_id
+    ):
+        return True
+    # For backward compatibility with legacy sessions that don't have creator_id,
+    # allow access but this should be rare and eventually phased out
+    if not hasattr(session_obj, "creator_id") or session_obj.creator_id is None:
+        return True
+    return False
+
+
+def is_session_owner(session_obj, creator_id=None, is_admin=False):
+    """Check if user is the actual owner of a session (strict ownership check)"""
+    if is_admin:
+        return True
+    if (
+        creator_id
+        and hasattr(session_obj, "creator_id")
+        and session_obj.creator_id == creator_id
+    ):
+        return True
+    # SECURITY: Strict ownership - do not claim ownership of orphaned sessions
+    return False
+
+
+def can_modify_session(session_obj, creator_id=None, is_admin=False):
+    """Check if user can modify session"""
+    return can_access_session(session_obj, creator_id, is_admin)
+
+
 class VotingSession:
     """Manages voting session data and operations"""
 
     def __init__(self, session_data=None):
+        # Initialize all required attributes with defaults first
+        self.id = str(uuid.uuid4())
+        self.created = datetime.now(timezone.utc).isoformat()
+        self.completed = None
+        self.title = ""
+        self.description = ""
+        self.items = []
+        self.participants = {}
+        self.votes = {}
+        self.settings = {
+            "anonymous": True,
+            "show_results_live": False,
+            "votes_per_participant": 10,
+            "results_access": "public",  # 'private' or 'public'
+            "show_item_names": True,
+            "presentation_mode": True,
+        }
+        self.status = "draft"  # 'draft', 'active', 'completed'
+        self.creator_id = None  # Browser fingerprint or 'admin'
+        self.creator_type = "public"  # 'public' or 'admin'
+
+        # Then update with provided data if any
         if session_data:
             self.__dict__.update(session_data)
-        else:
-            self.id = str(uuid.uuid4())
-            self.created = datetime.now(timezone.utc).isoformat()
-            self.completed = None
-            self.title = ""
-            self.description = ""
-            self.items = []
-            self.participants = {}
-            self.votes = {}
-            self.settings = {
-                "anonymous": True,
-                "show_results_live": False,
-                "votes_per_participant": 10,
-                "results_access": "public",  # 'private' or 'public'
-                "show_item_names": True,
-                "presentation_mode": True,
-            }
-            self.status = "draft"  # 'draft', 'active', 'completed'
 
     def mark_completed(self):
         """Mark session as completed with timestamp"""
@@ -261,6 +336,8 @@ class VotingSession:
             "votes": self.votes,
             "settings": self.settings,
             "status": self.status,
+            "creator_id": getattr(self, "creator_id", None),
+            "creator_type": getattr(self, "creator_type", "public"),
         }
 
     def get_file_path(self):
@@ -490,7 +567,13 @@ class SessionManager:
             json.dump(config, f, indent=2)
 
     def create_session(
-        self, title, description="", votes_per_participant=10, anonymous=True
+        self,
+        title,
+        description="",
+        votes_per_participant=10,
+        anonymous=True,
+        creator_id=None,
+        creator_type="public",
     ):
         """Create new voting session"""
         session = VotingSession()
@@ -498,13 +581,15 @@ class SessionManager:
         session.description = description
         session.settings["votes_per_participant"] = votes_per_participant
         session.settings["anonymous"] = anonymous
+        session.creator_id = creator_id
+        session.creator_type = creator_type
         session.save()
 
         # Add to cache
         self.cache[session.id] = session
 
         logger.info(
-            f"Created new session: {session.id} - {title} (votes: {votes_per_participant}, anonymous: {anonymous})"
+            f"Created new session: {session.id} - {title} (votes: {votes_per_participant}, anonymous: {anonymous}, creator: {creator_type})"
         )
         return session
 
@@ -637,9 +722,62 @@ class SessionManager:
             logger.error(f"Failed to delete session {session_id}: {e}")
             return False, f"Failed to delete session: {str(e)}"
 
+    def cleanup_duplicate_index_entries(self):
+        """Remove duplicate entries from session indexes"""
+        try:
+            # Clean active sessions index
+            self._cleanup_index_file(ACTIVE_INDEX_FILE, "active")
+
+            # Clean completed sessions index
+            self._cleanup_index_file(COMPLETED_INDEX_FILE, "completed")
+
+            logger.info("Session index cleanup completed")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to cleanup session indexes: {e}")
+            return False
+
+    def _cleanup_index_file(self, index_file, index_type):
+        """Clean a specific index file of duplicates"""
+        if not index_file.exists():
+            return
+
+        with open(index_file, "r") as f:
+            index_data = json.load(f)
+
+        original_count = len(index_data.get("sessions", []))
+
+        # Remove duplicates by session ID
+        seen_ids = set()
+        unique_sessions = []
+
+        for session in index_data.get("sessions", []):
+            if session["id"] not in seen_ids:
+                seen_ids.add(session["id"])
+                unique_sessions.append(session)
+            else:
+                logger.warning(
+                    f"Removed duplicate session {session['id']} from {index_type} index"
+                )
+
+        # Update index if duplicates were found
+        if len(unique_sessions) != original_count:
+            index_data["sessions"] = unique_sessions
+            index_data["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+            with open(index_file, "w") as f:
+                json.dump(index_data, f, indent=2)
+
+            logger.info(
+                f"Removed {original_count - len(unique_sessions)} duplicate entries from {index_type} index"
+            )
+
 
 # Initialize session manager
 session_manager = SessionManager()
+
+# Cleanup any duplicate index entries on startup
+session_manager.cleanup_duplicate_index_entries()
 
 
 # Email configuration and sending
@@ -953,6 +1091,24 @@ def admin_session(session_id):
     return render_template("admin_session.html", session=session)
 
 
+@app.route("/manage/<session_id>")
+def manage_session(session_id):
+    """Public session management page"""
+    session = session_manager.get_session(session_id)
+    if not session:
+        return "Session not found", 404
+
+    # Check ownership/access permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_access_session(session, creator_id, is_admin):
+        return "Access denied", 403
+
+    # Use the same template as admin but pass ownership info
+    return render_template(
+        "admin_session.html", session=session, is_public_user=not is_admin
+    )
+
+
 @app.route("/config")
 @require_auth
 def config_page():
@@ -1023,6 +1179,54 @@ def test_email_config():
     return jsonify({"success": success, "message": message})
 
 
+@app.route("/api/my-sessions", methods=["GET"])
+def get_my_sessions():
+    """Get sessions created by current user"""
+    creator_id, is_admin = get_current_creator_id()
+
+    # If admin, they can see all sessions via the admin route
+    if is_admin:
+        return jsonify(
+            {"sessions": [], "message": "Use admin dashboard for full session access"}
+        )
+
+    # Get sessions for this creator
+    limit = request.args.get("limit", 100, type=int)
+    active_sessions = session_manager.get_active_sessions(limit)
+    completed_sessions = session_manager.get_completed_sessions(limit)
+
+    all_sessions = active_sessions + completed_sessions
+
+    # Filter sessions by creator
+    my_sessions = []
+    seen_session_ids = set()  # Track seen sessions to prevent duplicates
+
+    for session in all_sessions:
+        # Skip if we've already processed this session (prevents duplicates from active/completed lists)
+        if session.id in seen_session_ids:
+            continue
+        seen_session_ids.add(session.id)
+
+        # Use strict ownership check for My Sessions - users should only see their own sessions
+        is_mine = is_session_owner(session, creator_id, is_admin)
+
+        if is_mine:
+            my_sessions.append(
+                {
+                    "id": session.id,
+                    "title": session.title,
+                    "created": session.created,
+                    "status": session.status,
+                    "participants_count": len(session.participants),
+                    "items_count": len(session.items),
+                    "total_votes": len(session.votes),
+                    "creator_type": getattr(session, "creator_type", "public"),
+                }
+            )
+
+    return jsonify({"sessions": my_sessions})
+
+
 @app.route("/api/sessions", methods=["GET"])
 @require_auth
 def get_active_sessions():
@@ -1048,7 +1252,6 @@ def get_active_sessions():
 
 
 @app.route("/api/sessions", methods=["POST"])
-@require_auth
 def create_session():
     """API endpoint to create new voting session"""
     data = request.json
@@ -1080,11 +1283,17 @@ def create_session():
                 }
             ), 400
 
+    # Get creator information
+    creator_id, is_admin = get_current_creator_id()
+    creator_type = "admin" if is_admin else "public"
+
     session = session_manager.create_session(
         title=data["title"],
         description=data.get("description", ""),
         votes_per_participant=data.get("votes_per_participant", 10),
         anonymous=data.get("anonymous", True),
+        creator_id=creator_id,
+        creator_type=creator_type,
     )
 
     return jsonify(
@@ -1100,12 +1309,26 @@ def get_session(session_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
+    # Check ownership/access permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_access_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
+
     return jsonify(session.to_dict())
 
 
 @app.route("/api/sessions/<session_id>", methods=["DELETE"])
 def delete_session(session_id):
     """Delete a session"""
+    session = session_manager.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
+
     success, message = session_manager.delete_session(session_id)
     if success:
         return jsonify({"success": True, "message": message})
@@ -1158,6 +1381,11 @@ def start_session(session_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
+
     if session.status != "draft":
         return jsonify(
             {"error": f"Cannot start session in {session.status} state"}
@@ -1184,6 +1412,11 @@ def complete_session(session_id):
 
     if not session:
         return jsonify({"error": "Session not found"}), 404
+
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
 
     if session.status != "active":
         return jsonify(
@@ -1289,6 +1522,11 @@ def add_session_item(session_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
+
     data = request.json
     if not data or "name" not in data:
         return jsonify({"error": "Item name is required"}), 400
@@ -1313,6 +1551,11 @@ def remove_session_item(session_id, item_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"error": "Access denied"}), 403
+
     # Find and remove item
     session.items = [item for item in session.items if item["id"] != item_id]
     session.save()
@@ -1326,6 +1569,11 @@ def add_participant(session_id):
     session = session_manager.get_session(session_id)
     if not session:
         return jsonify({"success": False, "error": "Session not found"}), 404
+
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"success": False, "error": "Access denied"}), 403
 
     data = request.get_json()
     email = data.get("email")
@@ -1461,6 +1709,11 @@ def remove_participant(session_id, participant_id):
     if not session:
         return jsonify({"success": False, "error": "Session not found"}), 404
 
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"success": False, "error": "Access denied"}), 403
+
     if participant_id not in session.participants:
         return jsonify({"success": False, "error": "Participant not found"}), 404
 
@@ -1527,6 +1780,11 @@ def send_all_invitations(session_id):
     session = session_manager.get_session(session_id)
     if not session:
         return jsonify({"success": False, "error": "Session not found"}), 404
+
+    # Check ownership/modification permissions
+    creator_id, is_admin = get_current_creator_id()
+    if not can_modify_session(session, creator_id, is_admin):
+        return jsonify({"success": False, "error": "Access denied"}), 403
 
     if not session.participants:
         return jsonify({"success": False, "error": "No participants found"}), 400

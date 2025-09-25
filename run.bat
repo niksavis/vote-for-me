@@ -27,9 +27,16 @@ REM Activate virtual environment
 echo Activating virtual environment...
 call .venv\Scripts\activate.bat
 
-REM Install/upgrade requirements
-echo Installing dependencies...
-pip install -r requirements.txt
+REM Check and install/upgrade requirements
+echo Checking dependencies...
+pip install -r requirements.txt --quiet --disable-pip-version-check
+if errorlevel 1 (
+    echo Warning: Some dependencies may not have installed correctly.
+    echo You can manually run: pip install -r requirements.txt
+    echo.
+) else (
+    echo Dependencies are up to date.
+)
 
 REM Create data directory if it doesn't exist
 if not exist "data" (
@@ -66,10 +73,16 @@ if /i "%VOTE_ENV%"=="development" (
 
     REM Start MailHog for email testing in development
     if exist "mailhog\mailhog.exe" (
-        echo Starting MailHog email server for development...
-        start /B "" "mailhog\mailhog.exe"
-        timeout /t 3 >nul
-        echo MailHog is running - Web interface: http://localhost:8025
+        REM Check if MailHog is already running
+        tasklist /FI "IMAGENAME eq mailhog.exe" 2>NUL | find /I /N "mailhog.exe">NUL
+        if "%ERRORLEVEL%"=="0" (
+            echo MailHog is already running - Web interface: http://localhost:8025
+        ) else (
+            echo Starting MailHog email server for development...
+            start /B "" "mailhog\mailhog.exe"
+            timeout /t 3 >nul
+            echo MailHog is now running - Web interface: http://localhost:8025
+        )
         echo.
     ) else (
         echo Warning: MailHog not available. Email functionality may not work in development.
