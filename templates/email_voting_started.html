@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Started - {{ session.title }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .title {
+            color: #28a745;
+            font-size: 1.4rem;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #6c757d;
+            font-size: 1rem;
+        }
+        .session-info {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .session-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .session-description {
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+        .cta-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        .cta-button:hover {
+            color: white;
+            text-decoration: none;
+        }
+        .info-section {
+            background: #e3f2fd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .info-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+        .info-text {
+            color: #424242;
+            margin-bottom: 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .voting-status {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+        .voting-status i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🗳️ Vote For Me</div>
+            <div class="title">Voting is Now Open!</div>
+            <div class="subtitle">Cast your votes now</div>
+        </div>
+
+        <div class="voting-status">
+            🎉 The voting session has started and is ready for your participation!
+        </div>
+
+        <div class="session-info">
+            <div class="session-title">{{ session.title }}</div>
+            {% if session.description %}
+            <div class="session-description">{{ session.description }}</div>
+            {% endif %}
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">📊 Voting Details</div>
+            <div class="info-text">
+                • <strong>Items to vote on:</strong> {{ session.items|length }} items<br>
+                • <strong>Votes per participant:</strong> {{ session.settings.votes_per_participant }} votes<br>
+                • <strong>Anonymous voting:</strong> {{ 'Yes' if session.settings.anonymous else 'No' }}<br>
+                {% if session.scheduled_end %}
+                • <strong>Voting closes:</strong> {{ session.scheduled_end|replace('T', ' at ')|replace('Z', ' UTC') }}<br>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="cta-section">
+            <a href="{{ participant_link }}" class="cta-button">
+                🗳️ Vote Now
+            </a>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">🔗 Your Voting Link</div>
+            <div class="info-text">
+                Your personalized voting link is:<br>
+                <a href="{{ participant_link }}" style="word-break: break-all; color: #667eea;">{{ participant_link }}</a>
+                <br><br>
+                <strong>Important:</strong> This link is unique to you and allows you to cast your votes securely. Please don't share this link with others.
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">💡 How to Vote</div>
+            <div class="info-text">
+                1. Click the "Vote Now" button above<br>
+                2. Review all voting items<br>
+                3. Allocate your {{ session.settings.votes_per_participant }} votes among the items<br>
+                4. Submit your votes when ready<br>
+                5. You can modify your votes until you submit them
+            </div>
+        </div>
+
+        {% if session.scheduled_end %}
+        <div class="info-section" style="background: #fff3cd; border: 1px solid #ffeaa7;">
+            <div class="info-title" style="color: #856404;">⏰ Voting Deadline</div>
+            <div class="info-text" style="color: #856404;">
+                <strong>Remember:</strong> Voting will close automatically on {{ session.scheduled_end|replace('T', ' at ')|replace('Z', ' UTC') }}. 
+                Make sure to cast your votes before the deadline!
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="footer">
+            <p>This is an automated notification from Vote For Me.<br>
+            If you have any questions, please contact the session organizer.</p>
+        </div>
+    </div>
+</body>
+</html>

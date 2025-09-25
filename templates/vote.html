@@ -458,6 +458,7 @@
                     if (result.success) {
                         sessionData = result.session;
                         participantData = result.participant;
+                        window.statusInfo = result.status_info;
                         totalVotes = sessionData.settings.votes_per_participant;
                         renderSession();
                         return;
@@ -478,18 +479,30 @@
             document.getElementById('sessionTitle').textContent = sessionData.title;
             document.getElementById('sessionDescription').textContent = sessionData.description;
             
-            // Check if session is completed
+            // Initialize voting interface manager for status-aware functionality
+            window.votingManager = new VotingInterfaceManager(sessionData, statusInfo);
+            
+            // Check session status and render appropriate interface
             if (sessionData.status === 'completed') {
                 showCompletedSession();
                 return;
             }
             
-            // Check if session is draft (not started yet)
             if (sessionData.status === 'draft') {
                 showDraftSession();
                 return;
             }
             
+            if (sessionData.status === 'active' && !sessionData.can_vote_now) {
+                showTimingRestrictedSession();
+                return;
+            }
+            
+            // Active session with voting allowed
+            showActiveVotingSession();
+        }
+        
+        function showActiveVotingSession() {
             // Update vote counters
             document.getElementById('remainingVotes').textContent = totalVotes;
             document.getElementById('totalVotes').textContent = totalVotes;
@@ -504,6 +517,13 @@
             if (sessionData.id) {
                 socket.emit('join_session', { session_id: sessionData.id });
             }
+            
+            // Show voting controls
+            const voteCounter = document.getElementById('voteCounter');
+            if (voteCounter) voteCounter.style.display = 'block';
+            
+            const submitSection = document.getElementById('submitSection');
+            if (submitSection) submitSection.style.display = 'block';
         }
         
         function renderVotingItems() {
@@ -711,6 +731,11 @@
                             }
                             
                         } else {
+                            // Enhanced error handling for status-aware responses
+                            if (result.error_type && typeof handleVoteSubmissionError === 'function') {
+                                handleVoteSubmissionError(result);
+                                return; // Exit retry loop for status errors
+                            }
                             throw new Error(result.message || result.error || 'Failed to submit votes');
                         }
                         
@@ -730,6 +755,20 @@
                 
             } catch (error) {
                 console.error('Error submitting votes:', error);
+                
+                // Try to parse as enhanced error response if it's a JSON error
+                if (error.message && error.message.includes('{')) {
+                    try {
+                        const errorData = JSON.parse(error.message);
+                        if (errorData.error_type) {
+                            handleVoteSubmissionError(errorData);
+                            return;
+                        }
+                    } catch (parseError) {
+                        // Not a JSON error, continue with regular handling
+                    }
+                }
+                
                 showAlert('Failed to submit votes. Please try again.', 'danger');
                 
                 // Show fallback form submission option after multiple failures
@@ -822,15 +861,78 @@
         }
         
         function showDraftSession() {
+            const statusInfo = window.statusInfo || {};
+            let statusContent = '';
+            
+            if (sessionData.scheduled_start) {
+                statusContent = `
+                    <div class="col-12 text-center py-5">
+                        <div class="card border-info">
+                            <div class="card-body">
+                                <i class="fas fa-clock fa-4x text-info mb-3"></i>
+                                <h3 class="text-info">Voting Scheduled</h3>
+                                <p class="lead mb-3">${statusInfo.message || 'This voting session will start automatically at the scheduled time.'}</p>
+                                <div id="countdown-timer" class="countdown-display mb-4"></div>
+                                <button class="btn btn-primary me-2" onclick="location.reload()">
+                                    <i class="fas fa-refresh me-2"></i>Refresh Page
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="toggleAutoRefresh()">
+                                    <i class="fas fa-sync me-2"></i><span id="auto-refresh-text">Enable Auto-Refresh</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusContent = `
+                    <div class="col-12 text-center py-5">
+                        <div class="card border-warning">
+                            <div class="card-body">
+                                <i class="fas fa-clock fa-4x text-warning mb-3"></i>
+                                <h3 class="text-warning">Voting Not Started</h3>
+                                <p class="lead mb-4">${statusInfo.message || 'This voting session hasn\'t started yet. Please wait for the organizer to begin the session.'}</p>
+                                <button class="btn btn-primary me-2" onclick="location.reload()">
+                                    <i class="fas fa-refresh me-2"></i>Refresh Page
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="toggleAutoRefresh()">
+                                    <i class="fas fa-sync me-2"></i><span id="auto-refresh-text">Enable Auto-Refresh</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('votingItems').innerHTML = statusContent;
+            
+            // Initialize countdown timer if scheduled
+            if (sessionData.scheduled_start) {
+                startCountdownTimer(sessionData.scheduled_start, 'countdown-timer');
+            }
+            
+            // Hide vote counter and submit section
+            const voteCounter = document.getElementById('voteCounter');
+            if (voteCounter) voteCounter.style.display = 'none';
+            
+            const submitSection = document.getElementById('submitSection');
+            if (submitSection) submitSection.style.display = 'none';
+        }
+        
+        function showTimingRestrictedSession() {
+            const statusInfo = window.statusInfo || {};
             document.getElementById('votingItems').innerHTML = `
                 <div class="col-12 text-center py-5">
                     <div class="card border-warning">
                         <div class="card-body">
-                            <i class="fas fa-clock fa-4x text-warning mb-3"></i>
-                            <h3 class="text-warning">Session Not Started</h3>
-                            <p class="lead mb-4">This voting session hasn't started yet. Please wait for the organizer to begin the session.</p>
-                            <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-hourglass-half fa-4x text-warning mb-3"></i>
+                            <h3 class="text-warning">${statusInfo.title || 'Voting Time Restriction'}</h3>
+                            <p class="lead mb-4">${statusInfo.message || 'Voting is not currently available due to timing restrictions.'}</p>
+                            <div id="timing-info" class="mb-4"></div>
+                            <button class="btn btn-primary me-2" onclick="location.reload()">
                                 <i class="fas fa-refresh me-2"></i>Refresh Page
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="toggleAutoRefresh()">
+                                <i class="fas fa-sync me-2"></i><span id="auto-refresh-text">Enable Auto-Refresh</span>
                             </button>
                         </div>
                     </div>
@@ -845,6 +947,159 @@
             if (submitSection) submitSection.style.display = 'none';
         }
         
+        // VotingInterfaceManager class for status-aware functionality
+        class VotingInterfaceManager {
+            constructor(sessionData, statusInfo) {
+                this.session = sessionData;
+                this.statusInfo = statusInfo || {};
+                this.countdownInterval = null;
+                this.autoRefreshInterval = null;
+                this.init();
+            }
+            
+            init() {
+                this.setupRealTimeUpdates();
+                this.setupStatusBanner();
+            }
+            
+            setupStatusBanner() {
+                // Add status banner if session has timing info
+                if (this.session.scheduled_end && this.session.status === 'active') {
+                    this.showVotingEndTimer();
+                }
+            }
+            
+            showVotingEndTimer() {
+                const banner = document.createElement('div');
+                banner.id = 'voting-end-banner';
+                banner.className = 'alert alert-info text-center mb-3';
+                banner.innerHTML = `
+                    <i class="fas fa-hourglass-half me-2"></i>
+                    <strong>Voting ends:</strong> <span id="end-countdown"></span>
+                `;
+                
+                const container = document.querySelector('.voting-container');
+                container.insertBefore(banner, container.firstChild.nextSibling);
+                
+                this.startCountdownTimer(this.session.scheduled_end, 'end-countdown');
+            }
+            
+            setupRealTimeUpdates() {
+                // Listen for session status changes
+                socket.on('session_status_changed', (data) => {
+                    if (data.session_id === this.session.id) {
+                        this.handleStatusChange(data);
+                    }
+                });
+                
+                socket.on('session_starting_soon', (data) => {
+                    if (data.session_id === this.session.id) {
+                        this.showStartingSoonNotification(data);
+                    }
+                });
+            }
+            
+            handleStatusChange(data) {
+                console.log('Session status changed:', data);
+                
+                // Show notification
+                this.showStatusChangeNotification(data.message || 'Session status updated');
+                
+                // Reload page after brief delay to show new interface
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }
+            
+            showStartingSoonNotification(data) {
+                showAlert(data.message || 'Voting will begin shortly!', 'info');
+            }
+            
+            showStatusChangeNotification(message) {
+                showAlert(message, 'success');
+            }
+        }
+        
+        // Countdown timer functionality
+        function startCountdownTimer(targetTime, elementId) {
+            const element = document.getElementById(elementId);
+            if (!element || !targetTime) return;
+            
+            const updateCountdown = () => {
+                const now = new Date();
+                const target = new Date(targetTime);
+                const diff = target - now;
+                
+                if (diff <= 0) {
+                    element.innerHTML = '<span class="text-success">Time reached!</span>';
+                    clearInterval(window.countdownInterval);
+                    
+                    // Auto-reload after a short delay
+                    setTimeout(() => location.reload(), 3000);
+                    return;
+                }
+                
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                let countdownText = '';
+                if (days > 0) countdownText += `${days}d `;
+                if (hours > 0) countdownText += `${hours}h `;
+                if (minutes > 0) countdownText += `${minutes}m `;
+                countdownText += `${seconds}s`;
+                
+                element.innerHTML = `<strong class="text-primary">${countdownText}</strong>`;
+            };
+            
+            updateCountdown();
+            window.countdownInterval = setInterval(updateCountdown, 1000);
+        }
+        
+        // Auto-refresh functionality
+        let autoRefreshEnabled = false;
+        function toggleAutoRefresh() {
+            const textElement = document.getElementById('auto-refresh-text');
+            
+            if (autoRefreshEnabled) {
+                clearInterval(window.autoRefreshInterval);
+                autoRefreshEnabled = false;
+                textElement.textContent = 'Enable Auto-Refresh';
+            } else {
+                window.autoRefreshInterval = setInterval(() => {
+                    location.reload();
+                }, 30000); // Refresh every 30 seconds
+                autoRefreshEnabled = true;
+                textElement.textContent = 'Disable Auto-Refresh';
+            }
+        }
+        
+        // Enhanced error handling for vote submission
+        function handleVoteSubmissionError(error) {
+            console.error('Vote submission error:', error);
+            
+            if (error.error_type === 'session_not_started') {
+                showAlert(`${error.error}: ${error.error_details}`, 'warning');
+                
+                // If there's a scheduled start time, show countdown
+                if (error.status_info && error.status_info.scheduled_start) {
+                    setTimeout(() => location.reload(), 2000);
+                }
+            } else if (error.error_type === 'session_ended') {
+                showAlert(`${error.error}: ${error.error_details}`, 'info');
+                
+                // Offer to view results
+                setTimeout(() => {
+                    if (confirm('Would you like to view the results?')) {
+                        window.location.href = `/results/${sessionData.id}`;
+                    }
+                }, 3000);
+            } else {
+                showAlert(error.error || 'Failed to submit votes. Please try again.', 'danger');
+            }
+        }
+
         // Socket.IO event handlers
         socket.on('connect', () => console.log('Connected to voting session'));
         socket.on('vote_update', (data) => {

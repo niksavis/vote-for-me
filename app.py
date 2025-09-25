@@ -289,6 +289,195 @@ def can_modify_session(session_obj, creator_id=None, is_admin=False):
     return can_access_session(session_obj, creator_id, is_admin)
 
 
+class SessionScheduler:
+    """Manages automatic session state transitions based on scheduling"""
+
+    def __init__(self, session_manager):
+        self.session_manager = session_manager
+        self.running = False
+        self.check_interval = 60  # Check every 60 seconds
+
+    def start_background_task(self):
+        """Start background task to check scheduled sessions"""
+        if self.running:
+            return
+
+        self.running = True
+        import threading
+
+        def background_checker():
+            while self.running:
+                try:
+                    self.check_scheduled_sessions()
+                except Exception as e:
+                    logger.error(f"Error in scheduled session checker: {e}")
+
+                # Sleep for check interval
+                import time
+
+                time.sleep(self.check_interval)
+
+        thread = threading.Thread(target=background_checker, daemon=True)
+        thread.start()
+        logger.info("Session scheduler background task started")
+
+    def stop_background_task(self):
+        """Stop background task"""
+        self.running = False
+        logger.info("Session scheduler background task stopped")
+
+    def check_scheduled_sessions(self):
+        """Check for sessions that should auto-start or auto-end"""
+        now = datetime.now(timezone.utc)
+        sessions_updated = []
+
+        # Get all active sessions (including draft sessions that might need to start)
+        for session in self.session_manager.get_all_sessions():
+            try:
+                updated = False
+
+                # Check if draft session should auto-start
+                if (
+                    session.status == "draft"
+                    and session.auto_start
+                    and session.scheduled_start
+                ):
+                    if self.start_session_if_scheduled(session, now):
+                        updated = True
+
+                # Check if active session should auto-end
+                if (
+                    session.status == "active"
+                    and session.auto_end
+                    and session.scheduled_end
+                ):
+                    if self.end_session_if_scheduled(session, now):
+                        updated = True
+
+                if updated:
+                    sessions_updated.append(session.id)
+
+            except Exception as e:
+                logger.error(f"Error checking scheduled session {session.id}: {e}")
+
+        if sessions_updated:
+            logger.info(
+                f"Updated {len(sessions_updated)} scheduled sessions: {sessions_updated}"
+            )
+
+    def start_session_if_scheduled(self, session, now=None):
+        """Auto-start session if scheduled time reached"""
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        try:
+            start_time = datetime.fromisoformat(
+                session.scheduled_start.replace("Z", "+00:00")
+            )
+            if now >= start_time:
+                logger.info(f"Auto-starting scheduled session {session.id}")
+                session.mark_started()
+                session.save()
+
+                # Send notifications if not already sent
+                if not session.notification_sent:
+                    self.send_start_notifications(session)
+                    session.notification_sent = True
+                    session.save()
+
+                # Emit real-time update
+                socketio.emit(
+                    "session_status_changed",
+                    {
+                        "session_id": session.id,
+                        "status": "active",
+                        "message": "Voting is now open!",
+                    },
+                    to=f"session_{session.id}",
+                )
+
+                return True
+        except Exception as e:
+            logger.error(f"Error auto-starting session {session.id}: {e}")
+
+        return False
+
+    def end_session_if_scheduled(self, session, now=None):
+        """Auto-complete session if end time reached"""
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        try:
+            end_time = datetime.fromisoformat(
+                session.scheduled_end.replace("Z", "+00:00")
+            )
+            if now >= end_time:
+                logger.info(f"Auto-ending scheduled session {session.id}")
+                session.move_to_completed()
+
+                # Emit real-time update
+                socketio.emit(
+                    "session_status_changed",
+                    {
+                        "session_id": session.id,
+                        "status": "completed",
+                        "message": "Voting has ended.",
+                    },
+                    to=f"session_{session.id}",
+                )
+
+                return True
+        except Exception as e:
+            logger.error(f"Error auto-ending session {session.id}: {e}")
+
+        return False
+
+    def send_start_notifications(self, session):
+        """Send notifications when voting becomes available"""
+        try:
+            # Get email configuration
+            config = load_config()
+            if not config.get("email_enabled", False):
+                logger.info(
+                    f"Email not enabled, skipping start notifications for session {session.id}"
+                )
+                return
+
+            # Send emails to all participants
+            participants_notified = 0
+            for participant_id, participant in session.participants.items():
+                try:
+                    email = participant.get("email")
+                    if email:
+                        # Generate participant link
+                        participant_link = session.generate_participant_link(email)
+
+                        # Send email notification
+                        send_email(
+                            email,
+                            f"Voting Started: {session.title}",
+                            render_template(
+                                "email_voting_started.html",
+                                session=session,
+                                participant_link=participant_link,
+                            ),
+                        )
+                        participants_notified += 1
+                except Exception as e:
+                    logger.error(
+                        f"Error sending start notification to {participant_id}: {e}"
+                    )
+
+            logger.info(
+                f"Sent start notifications to {participants_notified} participants for session {session.id}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error sending start notifications for session {session.id}: {e}"
+            )
+
+
 class VotingSession:
     """Manages voting session data and operations"""
 
@@ -314,6 +503,16 @@ class VotingSession:
         self.creator_id = None  # Browser fingerprint or 'admin'
         self.creator_type = "public"  # 'public' or 'admin'
 
+        # Enhanced timing fields for smart interface
+        self.scheduled_start = None  # ISO timestamp (optional)
+        self.scheduled_end = None  # ISO timestamp (optional)
+        self.timezone = "+00:00"  # UTC offset string (e.g., '+02:00')
+        self.auto_start = False  # enable automatic status transitions
+        self.auto_end = False  # enable automatic completion
+        self.notification_sent = False  # track if start notification sent
+        self.started_at = None  # ISO timestamp (when status changed to active)
+        self.completed_at = None  # ISO timestamp (when status changed to completed)
+
         # Then update with provided data if any
         if session_data:
             self.__dict__.update(session_data)
@@ -321,7 +520,120 @@ class VotingSession:
     def mark_completed(self):
         """Mark session as completed with timestamp"""
         self.completed = datetime.now(timezone.utc).isoformat()
+        self.completed_at = self.completed
         self.status = "completed"
+
+    def mark_started(self):
+        """Mark session as started with timestamp"""
+        self.started_at = datetime.now(timezone.utc).isoformat()
+        self.status = "active"
+
+    def can_vote_now(self):
+        """Check if voting is currently allowed based on session status and timing"""
+        if self.status != "active":
+            return False
+
+        # Check if session has timing constraints
+        if self.scheduled_start or self.scheduled_end:
+            now = datetime.now(timezone.utc)
+
+            # Check if session should have started
+            if self.scheduled_start:
+                start_time = datetime.fromisoformat(
+                    self.scheduled_start.replace("Z", "+00:00")
+                )
+                if now < start_time:
+                    return False
+
+            # Check if session should have ended
+            if self.scheduled_end:
+                end_time = datetime.fromisoformat(
+                    self.scheduled_end.replace("Z", "+00:00")
+                )
+                if now > end_time:
+                    return False
+
+        return True
+
+    def get_status_message(self):
+        """Get status message for participant interface"""
+        if self.status == "draft":
+            if self.scheduled_start:
+                try:
+                    start_time = datetime.fromisoformat(
+                        self.scheduled_start.replace("Z", "+00:00")
+                    )
+                    now = datetime.now(timezone.utc)
+                    if now < start_time:
+                        return {
+                            "type": "waiting",
+                            "title": "Voting hasn't started yet",
+                            "message": f"Voting will begin at {start_time.strftime('%Y-%m-%d %H:%M UTC')}",
+                            "scheduled_start": self.scheduled_start,
+                        }
+                except Exception:
+                    pass
+            return {
+                "type": "waiting",
+                "title": "Voting hasn't started yet",
+                "message": "You'll be able to vote once the administrator starts the session.",
+                "scheduled_start": None,
+            }
+        elif self.status == "completed":
+            return {
+                "type": "ended",
+                "title": "Voting has ended",
+                "message": f"This voting session closed on {self.completed_at or self.completed}.",
+                "completed_at": self.completed_at or self.completed,
+            }
+        elif self.status == "active":
+            if not self.can_vote_now():
+                # Session is active but timing constraints prevent voting
+                now = datetime.now(timezone.utc)
+                if self.scheduled_end:
+                    try:
+                        end_time = datetime.fromisoformat(
+                            self.scheduled_end.replace("Z", "+00:00")
+                        )
+                        if now > end_time:
+                            return {
+                                "type": "ended",
+                                "title": "Voting time has expired",
+                                "message": f"The voting period ended at {end_time.strftime('%Y-%m-%d %H:%M UTC')}.",
+                                "scheduled_end": self.scheduled_end,
+                            }
+                    except Exception:
+                        pass
+
+            message = "Voting is now open!"
+            if self.scheduled_end:
+                try:
+                    end_time = datetime.fromisoformat(
+                        self.scheduled_end.replace("Z", "+00:00")
+                    )
+                    message += (
+                        f" Voting closes at {end_time.strftime('%Y-%m-%d %H:%M UTC')}."
+                    )
+                except Exception:
+                    pass
+
+            return {
+                "type": "active",
+                "title": "Voting is Open",
+                "message": message,
+                "scheduled_end": self.scheduled_end,
+            }
+
+        return {
+            "type": "unknown",
+            "title": "Session Status Unknown",
+            "message": "Please refresh the page or contact support.",
+            "scheduled_start": None,
+        }
+
+    def is_scheduled(self):
+        """Check if session has timing constraints"""
+        return bool(self.scheduled_start or self.scheduled_end)
 
     def to_dict(self):
         """Convert session to dictionary for JSON serialization"""
@@ -338,6 +650,15 @@ class VotingSession:
             "status": self.status,
             "creator_id": getattr(self, "creator_id", None),
             "creator_type": getattr(self, "creator_type", "public"),
+            # Enhanced timing fields
+            "scheduled_start": getattr(self, "scheduled_start", None),
+            "scheduled_end": getattr(self, "scheduled_end", None),
+            "timezone": getattr(self, "timezone", "+00:00"),
+            "auto_start": getattr(self, "auto_start", False),
+            "auto_end": getattr(self, "auto_end", False),
+            "notification_sent": getattr(self, "notification_sent", False),
+            "started_at": getattr(self, "started_at", None),
+            "completed_at": getattr(self, "completed_at", None),
         }
 
     def get_file_path(self):
@@ -1484,12 +1805,21 @@ def start_session(session_id):
     if not session.items:
         return jsonify({"error": "Cannot start session without voting items"}), 400
 
-    # Change status to active
-    session.status = "active"
+    # Change status to active with proper timestamp
+    session.mark_started()
     session.save()
 
-    # Emit real-time update
+    # Emit real-time updates
     socketio.emit("session_started", {"session_id": session_id})
+    socketio.emit(
+        "session_status_changed",
+        {
+            "session_id": session_id,
+            "status": "active",
+            "message": "Voting is now open!",
+        },
+        to=f"session_{session_id}",
+    )
 
     return jsonify({"success": True, "status": "active", "session": session.to_dict()})
 
@@ -1516,10 +1846,19 @@ def complete_session(session_id):
     session.mark_completed()
     session.save()
 
-    # Emit real-time update
+    # Emit real-time updates
     socketio.emit(
         "session_completed",
         {"session_id": session_id, "completed_at": session.completed},
+    )
+    socketio.emit(
+        "session_status_changed",
+        {
+            "session_id": session_id,
+            "status": "completed",
+            "message": "Voting has ended.",
+        },
+        to=f"session_{session_id}",
     )
 
     return jsonify(
@@ -2558,22 +2897,49 @@ def api_vote():
             return jsonify({"error": "Session not found"}), 404
 
         # Check session status for voting
-        if action == "submit" and session.status == "completed":
-            return jsonify(
-                {
-                    "error": "This voting session has ended. Votes can no longer be submitted."
-                }
-            ), 400
+        # Enhanced status-aware error handling
+        if action == "submit" and session.status != "active":
+            status_info = session.get_status_message()
+            error_messages = {
+                "draft": {
+                    "message": "Voting hasn't started yet",
+                    "details": status_info["message"],
+                    "action": "wait_for_start",
+                    "type": "session_not_started",
+                },
+                "completed": {
+                    "message": "Voting has ended",
+                    "details": status_info["message"],
+                    "action": "view_results",
+                    "type": "session_ended",
+                },
+            }
 
-        if action == "submit" and session.status == "draft":
+            error_info = error_messages.get(
+                session.status,
+                {
+                    "message": "Session not available for voting",
+                    "details": "This session is not currently accepting votes.",
+                    "action": "contact_organizer",
+                    "type": "session_unavailable",
+                },
+            )
+
             return jsonify(
                 {
-                    "error": "This voting session has not started yet. Please wait for the session to begin."
+                    "success": False,
+                    "error": error_info["message"],
+                    "error_details": error_info["details"],
+                    "error_type": error_info["type"],
+                    "session_status": session.status,
+                    "recommended_action": error_info["action"],
+                    "status_info": status_info,
                 }
             ), 400
 
         if action == "validate":
-            # Return session data for voting interface
+            # Return enhanced session data for status-aware voting interface
+            status_info = session.get_status_message()
             return jsonify(
                 {
                     "success": True,
@@ -2583,11 +2949,19 @@ def api_vote():
                         "description": session.description,
                         "items": session.items,
                         "settings": session.settings,
+                        "status": session.status,
+                        "can_vote_now": session.can_vote_now(),
+                        "scheduled_start": getattr(session, "scheduled_start", None),
+                        "scheduled_end": getattr(session, "scheduled_end", None),
+                        "timezone": getattr(session, "timezone", "+00:00"),
+                        "started_at": getattr(session, "started_at", None),
+                        "completed_at": getattr(session, "completed_at", None),
                     },
                     "participant": {
                         "id": participant_data["participant_id"],
                         "email": participant_data["email"],
                     },
+                    "status_info": status_info,
                 }
             )
 
