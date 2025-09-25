@@ -73,16 +73,13 @@ if /i "%VOTE_ENV%"=="development" (
 
     REM Start MailHog for email testing in development
     if exist "mailhog\mailhog.exe" (
-        REM Check if MailHog is already running
-        tasklist /FI "IMAGENAME eq mailhog.exe" 2>NUL | find /I /N "mailhog.exe">NUL
-        if "%ERRORLEVEL%"=="0" (
-            echo MailHog is already running - Web interface: http://localhost:8025
-        ) else (
-            echo Starting MailHog email server for development...
-            start /B "" "mailhog\mailhog.exe"
-            timeout /t 3 >nul
-            echo MailHog is now running - Web interface: http://localhost:8025
-        )
+        echo Starting MailHog email server for development...
+        REM Try to start MailHog (if already running, this will just fail silently)
+        start /B "" "mailhog\mailhog.exe" 2>nul
+        REM Wait a moment for MailHog to start
+        timeout /t 3 >nul
+        echo MailHog should now be running - Web interface: http://localhost:8025
+        echo (If MailHog was already running, you may see duplicate processes - this is normal)
         echo.
     ) else (
         echo Warning: MailHog not available. Email functionality may not work in development.
