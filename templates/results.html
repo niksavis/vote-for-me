@@ -146,38 +146,44 @@
         }
         
         .vote-detail {
-            color: #555;
+            background: rgba(102, 126, 234, 0.1);
+            color: #333;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             font-size: 0.9rem;
-            margin-right: 1rem;
-            margin-bottom: 0.25rem;
-            display: inline-block;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .vote-detail .item-name {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .vote-detail .vote-count {
+            color: #667eea;
+            font-weight: 600;
+            margin-left: 1rem;
         }
         
         .vote-breakdown {
             color: #555;
             margin-top: 0.5rem;
         }
-        
-        /* Override stats-card styling for detailed results */
-        .stats-card h3 {
-            color: white;
-        }
-        
-        .stats-card p, .stats-card small {
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        /* Ensure detailed results text is readable */
-        .stats-card .participant-details .participant-vote-item {
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
-        }
+
         
         .total-votes-badge {
             background: #667eea;
             color: white;
             padding: 0.25rem 0.75rem;
             border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 0.75rem;
             font-size: 0.85rem;
             font-weight: 600;
             width: fit-content;
@@ -578,15 +584,18 @@
             <i class="fas fa-sync-alt"></i>
         </button>
     </div>
-        </div>
-
-        <!-- Detailed Results -->
-        <div class="stats-card">
-            <h3>Detailed Results</h3>
-            <div id="results-list">
-                <!-- Results will be populated here -->
+        
+        <!-- Participant Voting Details (Non-Anonymous Sessions) -->
+        <div class="stats-card" id="participant-details-section" style="display: none;">
+            <h3><i class="fas fa-users me-2"></i>Participant Voting Details</h3>
+            <p class="text-muted mb-3">Individual voting breakdown for this non-anonymous session</p>
+            <div id="participant-details-list">
+                <!-- Participant details will be populated here -->
             </div>
         </div>
+        </div>
+
+
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/shared.js"></script>
@@ -677,124 +686,12 @@
 
             // Results
             if (data.results && data.results.length > 0) {
-                updateResultsList(data.results, data);
                 updateChart(data.results);
-            } else {
-                document.getElementById('results-list').innerHTML = 
-                    '<p class="text-muted text-center">No votes have been cast yet.</p>';
+                updateParticipantDetails(data);
             }
         }
 
-        function updateResultsList(results, data) {
-            const container = document.getElementById('results-list');
-            
-            // Sort results by votes (descending)
-            const sortedResults = [...results].sort((a, b) => b.votes - a.votes);
-            
-            let html = sortedResults.map((result, index) => {
-                const rank = index + 1;
-                const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-other';
-                const maxVotes = Math.max(...sortedResults.map(r => r.votes)) || 1;
-                const percentage = maxVotes > 0 ? (result.votes / maxVotes) * 100 : 0;
-                const isWinner = index === 0 && result.votes > 0;
-                
-                return `
-                    <div class="result-item ${isWinner ? 'winner' : ''}">
-                        <div class="result-row">
-                            <div class="rank-badge ${rankClass}">
-                                ${rank}
-                            </div>
-                            <div class="item-details">
-                                <div class="item-name">${escapeHtml(result.name)}</div>
-                                ${result.description ? `<div class="item-description">${escapeHtml(result.description)}</div>` : ''}
-                                <div class="vote-bar">
-                                    <div class="vote-fill" style="width: ${percentage}%"></div>
-                                    <div class="vote-text">${result.votes} votes</div>
-                                </div>
-                                <div style="margin-top: 0.5rem; color: #666; font-size: 0.9rem;">
-                                    ${result.percentage.toFixed(1)}% of total votes
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            // Add participant-level details if not anonymous
-            if (!data.is_anonymous && data.detailed_results && data.detailed_results.length > 0) {
-                html += `
-                    <div style="margin-top: 2rem;">
-                        <h4><i class="fas fa-users me-2"></i>Participant Voting Details</h4>
-                        <p class="text-muted mb-3">Individual voting breakdown (non-anonymous session)</p>
-                        <div class="participant-details">
-                            ${data.detailed_results.map(participant => {
-                                const votingDetails = Object.entries(participant.votes || {}).map(([itemId, votes]) => {
-                                    const item = results.find(r => r.id == itemId);
-                                    return `<span class="vote-detail">${item ? item.name : 'Item ' + itemId}: ${votes} votes</span>`;
-                                }).join('');
-                                
-                                const voteTime = participant.vote_timestamp ? 
-                                    new Date(participant.vote_timestamp).toLocaleString() : 'Unknown time';
-                                
-                                return `
-                                    <div class="participant-vote-item">
-                                        <div class="participant-header">
-                                            <strong><i class="fas fa-user me-1"></i>${escapeHtml(participant.participant_email)}</strong>
-                                            <small class="text-muted">${voteTime}</small>
-                                        </div>
-                                        <div class="participant-votes">
-                                            <span class="total-votes-badge">${participant.total_votes_cast} total votes</span>
-                                            <div class="vote-breakdown">${votingDetails}</div>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            } else if (!data.is_anonymous && (!data.detailed_results || data.detailed_results.length === 0)) {
-                html += `
-                    <div style="margin-top: 2rem;">
-                        <h4><i class="fas fa-users me-2"></i>Participant Voting Details</h4>
-                        <p class="text-muted">No votes cast yet in this non-anonymous session.</p>
-                    </div>
-                `;
-            } else {
-                html += `
-                    <div style="margin-top: 2rem;">
-                        <div class="anonymous-notice">
-                            <i class="fas fa-user-secret me-2"></i>
-                            <strong>Anonymous Session</strong>
-                            <p class="mb-0 text-muted">Individual voting details are hidden to protect participant privacy. Only aggregate results are shown above.</p>
-                            <hr class="my-3">
-                            <h5><i class="fas fa-question-circle me-2"></i>Anonymous vs Non-Anonymous Voting</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h6><i class="fas fa-eye-slash text-success me-1"></i>Anonymous Mode (Current)</h6>
-                                    <ul class="small text-muted">
-                                        <li>Only aggregate vote counts shown</li>
-                                        <li>No participant identification</li>
-                                        <li>Complete privacy protection</li>
-                                        <li>Cannot see who voted for what</li>
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6><i class="fas fa-eye text-warning me-1"></i>Non-Anonymous Mode</h6>
-                                    <ul class="small text-muted">
-                                        <li>Aggregate results + individual details</li>
-                                        <li>Participant emails revealed</li>
-                                        <li>Individual vote breakdowns shown</li>
-                                        <li>Voting timestamps displayed</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
-        }
+
 
         function updateChart(results) {
             const ctx = document.getElementById('results-chart').getContext('2d');
@@ -861,6 +758,57 @@
                     }
                 }
             });
+        }
+
+        function updateParticipantDetails(data) {
+            const section = document.getElementById('participant-details-section');
+            const container = document.getElementById('participant-details-list');
+            
+            // Show section only for non-anonymous sessions with participant data
+            if (!data.is_anonymous && data.detailed_results && data.detailed_results.length > 0) {
+                section.style.display = 'block';
+                
+                const html = data.detailed_results.map(participant => {
+                    const votingDetails = Object.entries(participant.votes || {}).map(([itemId, votes]) => {
+                        const item = data.results.find(r => r.id == itemId);
+                        return `
+                            <div class="vote-detail">
+                                <span class="item-name">${escapeHtml(item ? item.name : 'Item ' + itemId)}</span>
+                                <span class="vote-count">${votes} votes</span>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    const voteTime = participant.vote_timestamp ? 
+                        new Date(participant.vote_timestamp).toLocaleString() : 'Unknown time';
+                    
+                    return `
+                        <div class="participant-vote-item">
+                            <div class="participant-header">
+                                <strong><i class="fas fa-user me-2"></i>${escapeHtml(participant.participant_email)}</strong>
+                                <small class="text-muted">${voteTime}</small>
+                            </div>
+                            <div class="participant-votes">
+                                <div class="total-votes-badge">${participant.total_votes_cast} total votes</div>
+                                <div class="vote-breakdown">${votingDetails}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                container.innerHTML = html;
+            } else if (!data.is_anonymous && (!data.detailed_results || data.detailed_results.length === 0)) {
+                section.style.display = 'block';
+                container.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-3"></i>
+                        <p>No votes cast yet in this non-anonymous session.</p>
+                        <small>Individual voting details will appear here once participants start voting.</small>
+                    </div>
+                `;
+            } else {
+                section.style.display = 'none';
+            }
         }
 
         function updateLiveIndicator(isConnected) {
