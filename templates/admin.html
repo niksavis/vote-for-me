@@ -465,8 +465,18 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="anonymousVoting" checked>
                                         <label class="form-check-label" for="anonymousVoting">
-                                            Anonymous voting
+                                            <i class="fas fa-user-secret me-1"></i>Anonymous voting
                                         </label>
+                                    </div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        <span id="admin-anonymous-help">Individual votes will be hidden in results (recommended)</span>
+                                    </small>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <strong>Anonymous:</strong> Only vote totals shown • 
+                                            <strong>Non-anonymous:</strong> Shows participant emails & individual votes
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -499,6 +509,21 @@
             }
         }
         
+        // Initialize admin form event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add listener for anonymous voting checkbox in admin form
+            document.addEventListener('change', function(e) {
+                if (e.target && e.target.id === 'anonymousVoting') {
+                    const helpText = document.getElementById('admin-anonymous-help');
+                    if (e.target.checked) {
+                        helpText.textContent = 'Individual votes will be hidden in results (recommended)';
+                    } else {
+                        helpText.textContent = 'Individual votes and participant emails will be shown in results';
+                    }
+                }
+            });
+        });
+
         async function handleSessionSubmit(event) {
             event.preventDefault();
             

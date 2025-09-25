@@ -2129,6 +2129,29 @@ def get_session_results(session_id):
     # Calculate results
     results = calculate_voting_results(session)
 
+    # Add detailed participant data if not anonymous
+    detailed_results = []
+    if not session.settings.get("anonymous", True):
+        # Build participant-level voting details
+        for participant_id, participant in session.participants.items():
+            if participant.get("voted"):
+                participant_votes = session.votes.get(participant_id, {})
+                detailed_results.append(
+                    {
+                        "participant_email": participant["email"],
+                        "vote_timestamp": participant.get("vote_timestamp"),
+                        "votes": participant_votes,
+                        "total_votes_cast": sum(
+                            int(v) for v in participant_votes.values()
+                        )
+                        if participant_votes
+                        else 0,
+                    }
+                )
+
+        # Sort by vote timestamp
+        detailed_results.sort(key=lambda x: x.get("vote_timestamp", ""))
+
     return jsonify(
         {
             "session_id": session_id,
@@ -2139,6 +2162,8 @@ def get_session_results(session_id):
                 [p for p in session.participants.values() if p.get("voted")]
             ),
             "results": results,
+            "is_anonymous": session.settings.get("anonymous", True),
+            "detailed_results": detailed_results,
         }
     )
 

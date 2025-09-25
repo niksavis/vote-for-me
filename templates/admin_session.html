@@ -1450,7 +1450,12 @@
                 if (result.success) {
                     showAlert('Session deleted successfully!', 'success');
                     setTimeout(() => {
+                        // Redirect based on user type - admins go to admin dashboard, public users go to homepage
+                        {% if is_authenticated %}
                         window.location.href = '/admin';
+                        {% else %}
+                        window.location.href = '/';
+                        {% endif %}
                     }, 1000);
                 } else {
                     showAlert('Error: ' + result.error, 'danger');
