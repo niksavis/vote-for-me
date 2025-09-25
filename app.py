@@ -772,6 +772,61 @@ class SessionManager:
                 f"Removed {original_count - len(unique_sessions)} duplicate entries from {index_type} index"
             )
 
+    def bulk_delete_sessions(self, delete_type):
+        """Bulk delete sessions by type"""
+        try:
+            deleted_count = 0
+            failed_count = 0
+
+            if delete_type == "all":
+                # Get all sessions from both active and completed
+                active_sessions = self.get_active_sessions(limit=10000)
+                completed_sessions = self.get_completed_sessions(limit=10000)
+                all_sessions = active_sessions + completed_sessions
+            elif delete_type == "completed":
+                all_sessions = self.get_completed_sessions(limit=10000)
+            elif delete_type in ["draft", "active"]:
+                active_sessions = self.get_active_sessions(limit=10000)
+                all_sessions = [s for s in active_sessions if s.status == delete_type]
+            else:
+                return False, 0, "Invalid delete type"
+
+            # Check if there are any sessions to delete
+            if not all_sessions:
+                return True, 0, f"No {delete_type} sessions found to delete"
+
+            # Delete each session
+            for session in all_sessions:
+                try:
+                    success, message = self.delete_session(session.id)
+                    if success:
+                        deleted_count += 1
+                    else:
+                        failed_count += 1
+                        logger.warning(
+                            f"Failed to delete session {session.id}: {message}"
+                        )
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Error deleting session {session.id}: {e}")
+
+            if failed_count > 0:
+                return (
+                    True,
+                    deleted_count,
+                    f"Deleted {deleted_count} sessions, failed to delete {failed_count}",
+                )
+            else:
+                return (
+                    True,
+                    deleted_count,
+                    f"Successfully deleted {deleted_count} sessions",
+                )
+
+        except Exception as e:
+            logger.error(f"Bulk delete error: {e}")
+            return False, 0, f"Bulk delete failed: {str(e)}"
+
 
 # Initialize session manager
 session_manager = SessionManager()
@@ -1334,6 +1389,40 @@ def delete_session(session_id):
         return jsonify({"success": True, "message": message})
     else:
         return jsonify({"error": message}), 404
+
+
+@app.route("/api/sessions/bulk-delete", methods=["POST"])
+@require_auth
+def bulk_delete_sessions():
+    """Bulk delete sessions by type - Admin only"""
+    try:
+        logger.info("Bulk delete request received")
+        data = request.get_json()
+        logger.info(f"Request data: {data}")
+        delete_type = data.get("type", "").lower()
+        logger.info(f"Delete type: {delete_type}")
+
+        if delete_type not in ["all", "completed", "draft", "active"]:
+            logger.error(f"Invalid delete type: {delete_type}")
+            return jsonify({"error": "Invalid delete type"}), 400
+
+        success, deleted_count, message = session_manager.bulk_delete_sessions(
+            delete_type
+        )
+        logger.info(
+            f"Bulk delete result: success={success}, count={deleted_count}, message={message}"
+        )
+
+        if success:
+            return jsonify(
+                {"success": True, "message": message, "deleted_count": deleted_count}
+            )
+        else:
+            return jsonify({"error": message}), 500
+
+    except Exception as e:
+        logger.error(f"Bulk delete error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/sessions/completed", methods=["GET"])

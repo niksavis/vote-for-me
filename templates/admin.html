@@ -210,6 +210,23 @@
             color: white;
         }
         
+        .dropdown-menu-dark {
+            background: rgba(33, 37, 41, 0.95);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .dropdown-header {
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+        }
+        
         .alert {
             border: none;
             border-radius: 10px;
@@ -299,9 +316,32 @@
         <div class="sessions-container">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3 style="color: white; margin: 0;">Your Sessions</h3>
-                <button class="btn btn-glass" onclick="window.location.reload()">
-                    <i class="fas fa-sync-alt me-2"></i>Refresh
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-glass" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                    </button>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-glass dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-trash me-2"></i>Bulk Delete
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li><h6 class="dropdown-header"><i class="fas fa-exclamation-triangle me-2"></i>Dangerous Actions</h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="confirmBulkDelete('all')">
+                                <i class="fas fa-times-circle me-2"></i>Delete All Sessions
+                            </a></li>
+                            <li><a class="dropdown-item text-warning" href="#" onclick="confirmBulkDelete('completed')">
+                                <i class="fas fa-check-circle me-2"></i>Delete Completed
+                            </a></li>
+                            <li><a class="dropdown-item text-info" href="#" onclick="confirmBulkDelete('draft')">
+                                <i class="fas fa-edit me-2"></i>Delete Draft
+                            </a></li>
+                            <li><a class="dropdown-item text-success" href="#" onclick="confirmBulkDelete('active')">
+                                <i class="fas fa-play-circle me-2"></i>Delete Active
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
             
             <div id="sessionsList">
@@ -378,6 +418,48 @@
                         <p>Create your first voting session to get started!</p>
                     </div>
                 {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Delete Confirmation Modal -->
+    <div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-labelledby="bulkDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; color: #333;">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-danger" id="bulkDeleteModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirm Bulk Deletion
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="color: #333;">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-trash-alt text-danger" style="font-size: 3rem; opacity: 0.7;"></i>
+                    </div>
+                    <p class="text-center mb-3" id="bulkDeleteMessage" style="color: #333;">
+                        Are you sure you want to delete selected sessions?
+                    </p>
+                    <div class="alert alert-warning d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <div>
+                            <strong>Warning:</strong> This action cannot be undone. All session data, votes, and participant information will be permanently deleted.
+                        </div>
+                    </div>
+                    <div class="mt-3 p-3 rounded d-flex align-items-center" style="background: rgba(220, 53, 69, 0.1); border: 2px solid rgba(220, 53, 69, 0.2);">
+                        <input class="form-check-input me-3" type="checkbox" id="confirmDeleteCheckbox" style="margin-top: 0;">
+                        <label class="form-check-label" for="confirmDeleteCheckbox" style="color: #dc3545; font-weight: 600; margin-bottom: 0;">
+                            <strong>I understand this action is permanent and cannot be undone</strong>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmBulkDeleteBtn" disabled onclick="executeBulkDelete()">
+                        <i class="fas fa-trash me-2"></i>Delete Sessions
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -764,6 +846,101 @@
                     bsAlert.close();
                 }
             }, 5000);
+        }
+
+        // Bulk Delete Functionality
+        let currentBulkDeleteType = '';
+        
+        function confirmBulkDelete(type) {
+            currentBulkDeleteType = type;
+            
+            const messages = {
+                'all': 'Are you sure you want to delete <strong>ALL SESSIONS</strong>?',
+                'completed': 'Are you sure you want to delete all <strong>COMPLETED</strong> sessions?',
+                'draft': 'Are you sure you want to delete all <strong>DRAFT</strong> sessions?',
+                'active': 'Are you sure you want to delete all <strong>ACTIVE</strong> sessions?'
+            };
+            
+            const icons = {
+                'all': 'fas fa-times-circle text-danger',
+                'completed': 'fas fa-check-circle text-warning',
+                'draft': 'fas fa-edit text-info', 
+                'active': 'fas fa-play-circle text-success'
+            };
+            
+            document.getElementById('bulkDeleteMessage').innerHTML = messages[type];
+            document.getElementById('bulkDeleteModalLabel').innerHTML = 
+                `<i class="${icons[type]} me-2"></i>Confirm Bulk Deletion`;
+            
+            // Reset confirmation checkbox and button state
+            const checkbox = document.getElementById('confirmDeleteCheckbox');
+            const deleteBtn = document.getElementById('confirmBulkDeleteBtn');
+            
+            checkbox.checked = false;
+            deleteBtn.disabled = true;
+            
+            // Set up checkbox event listener for this modal instance
+            checkbox.onchange = function() {
+                deleteBtn.disabled = !this.checked;
+            };
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+            modal.show();
+        }
+        
+
+        
+        async function executeBulkDelete() {
+            console.log('executeBulkDelete called with type:', currentBulkDeleteType);
+            
+            const btn = document.getElementById('confirmBulkDeleteBtn');
+            const originalText = btn.innerHTML;
+            
+            // Show loading state
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+            btn.disabled = true;
+            
+            try {
+                console.log('Making API request to /api/sessions/bulk-delete');
+                const response = await fetch('/api/sessions/bulk-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: currentBulkDeleteType
+                    })
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok && data.success) {
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
+                    modal.hide();
+                    
+                    // Show success message
+                    showSuccess(`Successfully deleted ${data.deleted_count} sessions`);
+                    
+                    // Refresh page after short delay
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    throw new Error(data.error || `HTTP ${response.status}: Failed to delete sessions`);
+                }
+                
+            } catch (error) {
+                console.error('Bulk delete error:', error);
+                showError(`Failed to delete sessions: ${error.message}`);
+                
+                // Restore button on error
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
     </script>
 </body>
