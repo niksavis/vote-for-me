@@ -14,6 +14,7 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            padding-bottom: 120px; /* Space for control menu */
         }
         
         .results-section {
@@ -116,6 +117,7 @@
         
         .participant-vote-item {
             background: rgba(255, 255, 255, 0.95);
+            color: #333;
             border-radius: 12px;
             padding: 1rem;
             border-left: 4px solid #667eea;
@@ -123,15 +125,52 @@
         
         .participant-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 0.5rem;
+            color: #333;
+        }
+        
+        .participant-header strong {
+            color: #333;
+        }
+        
+        .participant-header .text-muted {
+            color: #666 !important;
         }
         
         .participant-votes {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+        }
+        
+        .vote-detail {
+            color: #555;
+            font-size: 0.9rem;
+            margin-right: 1rem;
+            margin-bottom: 0.25rem;
+            display: inline-block;
+        }
+        
+        .vote-breakdown {
+            color: #555;
+            margin-top: 0.5rem;
+        }
+        
+        /* Override stats-card styling for detailed results */
+        .stats-card h3 {
+            color: white;
+        }
+        
+        .stats-card p, .stats-card small {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* Ensure detailed results text is readable */
+        .stats-card .participant-details .participant-vote-item {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
         }
         
         .total-votes-badge {
@@ -209,22 +248,23 @@
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1000;
+            z-index: 1050;
             display: flex;
             align-items: center;
             gap: 15px;
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(15px);
             border-radius: 50px;
             padding: 15px 25px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(0, 0, 0, 0.1);
         }
         
         .control-btn {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
-            border: none;
-            color: white;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #333;
             width: 50px;
             height: 50px;
             border-radius: 50%;
@@ -233,22 +273,27 @@
             align-items: center;
             justify-content: center;
             text-decoration: none;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
         
         .control-btn:hover {
-            background: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 1);
             transform: scale(1.1);
-            color: white;
+            color: #333;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
         
         .control-btn.primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             width: 60px;
             height: 60px;
+            border: none;
         }
         
         .control-btn.primary:hover {
             background: linear-gradient(135deg, #7a8cee 0%, #8a5ba6 100%);
+            color: white;
             transform: scale(1.1);
         }
         
@@ -527,7 +572,7 @@
             <i class="fas fa-arrow-left"></i>
         </a>
         <a href="/present/{{ session.id }}" class="control-btn primary" title="Presentation Mode">
-            <i class="fas fa-presentation-screen"></i>
+            <i class="fas fa-desktop"></i>
         </a>
         <button class="control-btn" onclick="refreshResults()" title="Refresh Results">
             <i class="fas fa-sync-alt"></i>
