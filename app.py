@@ -2388,12 +2388,17 @@ def presentation_mode(session_id):
 @app.route("/results/<session_id>")
 def results_page(session_id):
     """Results page for viewing voting results"""
+    logger.info(f"Results page requested for session: {session_id}")
     session = session_manager.get_session(session_id)
     if not session:
+        logger.error(f"Session not found: {session_id}")
         return "Session not found", 404
 
     # Convert session to JSON-serializable format
     session_dict = session.to_dict()
+    logger.info(
+        f"Session data: {session_dict.get('title', 'No title')} - Status: {session_dict.get('status', 'No status')}"
+    )
     return render_template("results.html", session=session_dict)
 
 
